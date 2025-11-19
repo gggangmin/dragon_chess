@@ -1,235 +1,223 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Balatro Dragon Chess</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
-    
-    <style>
-        /* --- Global Variables & Base --- */
-        :root {
-            --crt-bg: #111;
-            --panel-bg: #2c3e50;
-            --text-main: #ecf0f1;
-            
-            /* Race Colors */
-            --human-main: #2980b9; --human-light: #3498db;
-            --orc-main: #c0392b;   --orc-light: #e74c3c;
-            --elf-main: #27ae60;   --elf-light: #2ecc71;
-            
-            /* Balatro Accents */
-            --gold: #f1c40f;
-            --border: #fff;
-        }
-
-        body {
-            font-family: 'VT323', monospace;
-            background-color: var(--crt-bg);
-            background-image: linear-gradient(0deg, transparent 24%, rgba(255, 255, 255, .05) 25%, rgba(255, 255, 255, .05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, .05) 75%, rgba(255, 255, 255, .05) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(255, 255, 255, .05) 25%, rgba(255, 255, 255, .05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, .05) 75%, rgba(255, 255, 255, .05) 76%, transparent 77%, transparent);
-            background-size: 50px 50px;
-            color: var(--text-main);
-            text-transform: uppercase;
-            overflow-x: hidden;
-        }
-
-        /* CRT Effect */
-        body::after {
-            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-            z-index: 9999; background-size: 100% 2px, 3px 100%; pointer-events: none;
-        }
-
-        /* --- UI Components --- */
-        .pixel-box {
-            background-color: var(--panel-bg);
-            border: 4px solid var(--border);
-            box-shadow: 8px 8px 0px rgba(0,0,0,0.5);
-        }
-        .pixel-btn {
-            border: 2px solid white; box-shadow: 4px 4px 0px black;
-            transition: transform 0.1s, box-shadow 0.1s;
-            text-transform: uppercase; font-weight: bold; cursor: pointer;
-        }
-        .pixel-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px black; }
-        .pixel-btn:hover { background-color: var(--gold); color: black; }
-
-        /* --- Board Styling --- */
-        #board { border: 6px solid white; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
-        .square-light { background-color: #95a5a6; }
-        .square-dark { background-color: #34495e; }
-        
-        .square-selected { background-color: var(--gold) !important; box-shadow: inset 0 0 0 4px black; }
-        .square-check { background: repeating-linear-gradient(45deg, #c0392b, #c0392b 10px, #e74c3c 10px, #e74c3c 20px) !important; }
-
-        .square-valid::after {
-            content: ''; position: absolute; width: 12px; height: 12px;
-            background-color: var(--elf-light); box-shadow: 2px 2px 0 black;
-            top: 50%; left: 50%; transform: translate(-50%, -50%);
-        }
-        .square-capture::after {
-            content: ''; position: absolute; inset: 0;
-            border: 4px solid var(--orc-light); box-shadow: inset 0 0 15px var(--orc-main);
-        }
-        .square-teleport { background-color: #9b59b6 !important; animation: pulse 1s infinite; }
-        .square-skill { position: relative; }
-        .square-skill::after {
-            content: ''; position: absolute; inset: 2px; border: 2px dashed #a29bfe;
-        }
-
-        /* --- RPG Token/Sprite Styling --- */
-        .token-container {
-            width: 85%; height: 85%;
-            position: relative;
-            display: flex; align-items: center; justify-content: center;
-            transition: transform 0.1s;
-        }
-        .token-container:hover { transform: translateY(-3px); z-index: 10; }
-
-        /* 1. Background Layer (Race) */
-        .token-bg {
-            position: absolute; inset: 0;
-            border: 2px solid rgba(0,0,0,0.5);
-            box-shadow: 3px 3px 0 rgba(0,0,0,0.4);
-        }
-        /* Race Styles */
-        .race-human .token-bg {
-            background: linear-gradient(135deg, var(--human-light), var(--human-main));
-            border-radius: 2px 2px 12px 12px; /* Shield Shape */
-            border-color: #fff;
-        }
-        .race-orc .token-bg {
-            background: linear-gradient(135deg, var(--orc-light), var(--orc-main));
-            clip-path: polygon(10% 0, 90% 0, 100% 20%, 100% 80%, 90% 100%, 10% 100%, 0 80%, 0 20%); /* Hexagonish */
-            border: none; outline: 2px solid #000;
-        }
-        .race-elf .token-bg {
-            background: linear-gradient(135deg, var(--elf-light), var(--elf-main));
-            border-radius: 50% 0 50% 0; /* Leaf Shape */
-            border-color: #f1f2f6;
-        }
-        .race-none .token-bg {
-            background: #7f8c8d; border-radius: 4px;
-        }
-        /* --- 직업별 장판 모양 (Clip-path) 추가 --- */
-        /* 인간 직업 */
-        .job-priest .token-bg { 
-            clip-path: polygon(35% 0%, 65% 0%, 65% 35%, 100% 35%, 100% 65%, 65% 65%, 65% 100%, 35% 100%, 35% 65%, 0% 65%, 0% 35%, 35% 35%); /* 십자가 */
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dragon Chess</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- Global Variables & Base --- */
+        :root {
+            --crt-bg: #120c09;       /* 배경: 아주 어두운 고동색 */
+            --panel-bg: #3e2723;     /* 패널: 짙은 가죽/나무색 */
+            --text-main: #d7ccc8;    /* 텍스트: 바랜 종이색 */
+            
+            /* Race Colors (기존 유지) */
+            --human-main: #2980b9; --human-light: #3498db;
+            --orc-main: #c0392b;   --orc-light: #e74c3c;
+            --elf-main: #27ae60;   --elf-light: #2ecc71;
+            
+            /*  Accents */
+            --gold: #ffb300;         /* 금색: 조금 더 진하게 */
+            --purple: #9b59b6;
+            --border: #a1887f;       /* 테두리: 앤틱한 브라운 그레이 */
         }
-        .job-general .token-bg { 
-            clip-path: polygon(0% 0%, 100% 0%, 100% 85%, 50% 100%, 0% 85%); /* 깃발/배너 */
+
+        body {
+            font-family: 'VT323', monospace;
+            background-color: var(--crt-bg);
+            background-image: linear-gradient(0deg, transparent 24%, rgba(255, 255, 255, .05) 25%, rgba(255, 255, 255, .05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, .05) 75%, rgba(255, 255, 255, .05) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(255, 255, 255, .05) 25%, rgba(255, 255, 255, .05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, .05) 75%, rgba(255, 255, 255, .05) 76%, transparent 77%, transparent);
+            background-size: 50px 50px;
+            color: var(--text-main);
+            text-transform: uppercase;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        /* CRT Effect */
+        body::after {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 9999; background-size: 100% 2px, 3px 100%; pointer-events: none;
+        }
+
+        /* --- UI Components --- */
+        .pixel-box {
+            background-color: var(--panel-bg);
+            border: 4px solid var(--border);
+            box-shadow: 8px 8px 0px rgba(0,0,0,0.5);
+        }
+        .pixel-btn {
+            border: 2px solid white; box-shadow: 4px 4px 0px black;
+            transition: transform 0.1s, box-shadow 0.1s;
+            text-transform: uppercase; font-weight: bold; cursor: pointer;
+        }
+        .pixel-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px black; }
+        .pixel-btn:hover { background-color: var(--gold); color: black; }
+
+        /* --- Board Styling --- */
+        #board { border: 6px solid white; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
+        .square-light { background-color: #95a5a6; }
+        .square-dark { background-color: #34495e; }
+        
+        .square-selected { background-color: var(--gold) !important; box-shadow: inset 0 0 0 4px black; }
+        .square-check { background: repeating-linear-gradient(45deg, #c0392b, #c0392b 10px, #e74c3c 10px, #e74c3c 20px) !important; }
+
+        .square-valid::after {
+            content: ''; position: absolute; width: 12px; height: 12px;
+            background-color: var(--elf-light); box-shadow: 2px 2px 0 black;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+        .square-capture::after {
+            content: ''; position: absolute; inset: 0;
+            border: 4px solid var(--orc-light); box-shadow: inset 0 0 15px var(--orc-main);
+        }
+        .square-teleport { background-color: #9b59b6 !important; animation: pulse 1s infinite; }
+        .square-skill { position: relative; }
+        .square-skill::after {
+            content: ''; position: absolute; inset: 2px; border: 2px dashed #a29bfe;
+        }
+
+        /* --- RPG Token/Sprite Styling --- */
+        .token-container {
+            width: 85%; height: 85%;
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.1s;
+        }
+        .token-container:hover { transform: translateY(-3px); z-index: 10; }
+
+        /* 1. Background Layer (Race Defaults) */
+        .token-bg {
+            position: absolute; inset: 0;
+            border: 2px solid rgba(0,0,0,0.5); /* 기본 그림자 */
+            box-shadow: 3px 3px 0 rgba(0,0,0,0.4); /* 입체감 */
+            transition: all 0.3s;
         }
         
-        /* 오크 직업 */
-        .job-berserker .token-bg { 
-            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); /* 폭발하는 별 */
-        }
-        .job-punisher .token-bg { 
-            clip-path: polygon(0% 0%, 100% 0%, 85% 100%, 15% 100%); /* 묵직한 역사다리꼴 */
+        /* Race Colors & Shapes */
+        .race-human .token-bg { 
+            background: linear-gradient(135deg, var(--human-light), var(--human-main)); 
+            border-color: #fff;
+            border-radius: 2px 2px 12px 12px; /* 방패 모양 (둥근 하단) */
         }
         
-        /* 엘프 직업 */
-        .job-archer .token-bg { 
-            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); /* 마름모/화살촉 */
+        .race-orc .token-bg { 
+            background: linear-gradient(135deg, var(--orc-light), var(--orc-main)); 
+            border-color: #fff; /* 흰색 테두리 복구 */
+            border-radius: 0px; /* 날카로운 사각형 (야만성 강조) */
+            transform: rotate(2deg); /* 약간 비뚤어진 느낌 */
         }
-        .job-elementalist .token-bg { 
-            border-radius: 50%; border: 3px double white; /* 마법진 (원형) */
+        
+        .race-elf .token-bg { 
+            background: linear-gradient(135deg, var(--elf-light), var(--elf-main)); 
+            border-color: #f1f2f6;
+            border-radius: 50% 0 50% 0; /* 나뭇잎 모양 */
         }
-        /* 2. Main Piece Icon */
-        .token-icon {
-            font-size: 1.8rem; z-index: 2;
-            filter: drop-shadow(2px 2px 0 #000);
-        }
-        .piece-w .token-icon { color: #fff; }
-        .piece-b .token-icon { color: #2c3e50; text-shadow: 0 0 2px #000; }
+        
+        .race-none .token-bg { 
+            background: #7f8c8d; 
+            border-radius: 4px; 
+            border-color: #bdc3c7;
+        }
 
-        /* 3. Job Badge */
-        .job-badge {
-            position: absolute; bottom: -4px; right: -4px;
-            width: 20px; height: 20px;
-            background-color: #2c3e50; border: 2px solid var(--gold);
-            color: var(--gold);
-            font-size: 0.7rem;
-            display: flex; align-items: center; justify-content: center;
-            z-index: 5;
-            box-shadow: 2px 2px 0 #000;
-        }
+        /* 2. Main Piece Icon */
+        .token-icon {
+            font-size: 1.8rem; z-index: 2;
+            filter: drop-shadow(2px 2px 0 #000);
+        }
+        .piece-w .token-icon { color: #fff; }
+        .piece-b .token-icon { color: #2c3e50; text-shadow: 0 0 2px #000; }
 
-        /* 4. Special Effects */
-        .spirit-effect {
-            position: absolute; inset: -2px;
-            border: 2px dashed #a5f3fc; border-radius: 50%;
-            animation: spin 4s linear infinite;
-        }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-        
-        .dragon-effect .token-icon {
-            color: #e74c3c !important; filter: drop-shadow(0 0 5px #c0392b);
-            animation: bounce 2s infinite;
-        }
-        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+        /* 3. Job Badge */
+        .job-badge {
+            position: absolute; bottom: -4px; right: -4px;
+            width: 20px; height: 20px;
+            background-color: #2c3e50; border: 2px solid var(--gold);
+            color: var(--gold);
+            font-size: 0.7rem;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 5;
+            box-shadow: 2px 2px 0 #000;
+            border-radius: 4px;
+        }
 
-        /* Modal & Cards */
-        .level-up-card {
-            background: #34495e; border: 4px solid white; box-shadow: 6px 6px 0 black;
-            transition: all 0.2s; cursor: pointer;
-        }
-        .level-up-card:hover {
-            transform: translate(-4px, -4px);
-            box-shadow: 10px 10px 0 var(--gold); border-color: var(--gold);
-        }
+        /* 4. Special Effects */
+        .spirit-effect {
+            position: absolute; inset: -2px;
+            border: 2px dashed #a5f3fc; border-radius: 50%;
+            animation: spin 4s linear infinite;
+            z-index: 1;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        .dragon-effect .token-icon {
+            color: #e74c3c !important; filter: drop-shadow(0 0 5px #c0392b);
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 
-        /* Helper */
-        .hidden { display: none !important; }
-        .flex { display: flex; }
-        
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 12px; }
-        ::-webkit-scrollbar-track { background: #000; }
-        ::-webkit-scrollbar-thumb { background: #fff; border: 2px solid #000; }
-    </style>
+        /* Modal & Cards */
+        .level-up-card {
+            background: #34495e; border: 4px solid white; box-shadow: 6px 6px 0 black;
+            transition: all 0.2s; cursor: pointer;
+        }
+        .level-up-card:hover {
+            transform: translate(-4px, -4px);
+            box-shadow: 10px 10px 0 var(--gold); border-color: var(--gold);
+        }
+
+        /* Helper */
+        .hidden { display: none !important; }
+        .flex { display: flex; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 12px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #fff; border: 2px solid #000; }
+    </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
 
-    <div class="flex flex-col lg:flex-row gap-8 w-full max-w-7xl items-start justify-center relative z-10">
-        
-        <!-- Game Area -->
-        <div class="flex flex-col items-center w-full max-w-[600px] shrink-0">
-            
-            <!-- Header -->
-            <div class="pixel-box w-full mb-4 p-4 flex justify-between items-center">
-                <div>
-                    <h1 class="text-4xl font-bold text-yellow-400 italic" style="text-shadow: 3px 3px 0 #000;">DRAGON CHESS</h1>
-                    <div id="status" class="text-xl mt-1 text-gray-300 tracking-widest">PRESS START</div>
-                </div>
-                <div class="flex gap-3">
-                    <button id="skill-btn" onclick="game.activateSkill()" class="hidden pixel-btn bg-purple-600 text-white px-4 py-2 animate-pulse">SKILL</button>
-                    <button onclick="game.resetGame()" class="pixel-btn bg-blue-600 text-white px-4 py-2">RESET</button>
-                </div>
-            </div>
+    <div class="flex flex-col lg:flex-row gap-8 w-full max-w-7xl items-start justify-center relative z-10">
+        
+        <!-- Game Area -->
+        <div class="flex flex-col items-center w-full max-w-[600px] shrink-0">
+            
+            <!-- Header -->
+            <div class="pixel-box w-full mb-4 p-4 flex justify-between items-center">
+                <div>
+                    <h1 class="text-4xl font-bold text-yellow-400 italic" style="text-shadow: 3px 3px 0 #000;">DRAGON CHESS</h1>
+                    <div id="status" class="text-xl mt-1 text-gray-300 tracking-widest">PRESS START</div>
+                </div>
+                <div class="flex gap-3">
+                    <button id="skill-btn" onclick="game.activateSkill()" class="hidden pixel-btn bg-purple-600 text-white px-4 py-2 animate-pulse">SKILL</button>
+                    <button onclick="game.resetGame()" class="pixel-btn bg-blue-600 text-white px-4 py-2">RESET</button>
+                </div>
+            </div>
 
-            <!-- Board -->
-            <div class="w-full overflow-auto p-2 bg-black border-4 border-gray-700 mb-4 shadow-[8px_8px_0_0_rgba(0,0,0,0.5)]">
-                <div id="board" class="grid gap-0 mx-auto relative bg-gray-600 transition-all duration-300"></div>
-            </div>
+            <!-- Board -->
+            <div class="w-full overflow-auto p-2 bg-black border-4 border-gray-700 mb-4 shadow-[8px_8px_0_0_rgba(0,0,0,0.5)]">
+                <div id="board" class="grid gap-0 mx-auto relative bg-gray-600 transition-all duration-300"></div>
+            </div>
 
-            <!-- Captured -->
-            <div class="w-full grid grid-cols-2 gap-4">
-                <div class="pixel-box p-2 min-h-[60px]">
-                    <div class="text-xs text-gray-400 mb-1">GRAVEYARD (BLACK)</div>
-                    <div id="captured-w" class="flex flex-wrap gap-2 items-center"></div>
-                </div>
-                <div class="pixel-box p-2 min-h-[60px]">
-                    <div class="text-xs text-gray-400 mb-1">GRAVEYARD (WHITE)</div>
-                    <div id="captured-b" class="flex flex-wrap gap-2 items-center"></div>
-                </div>
-            </div>
-        </div>
+            <!-- Captured -->
+            <div class="w-full grid grid-cols-2 gap-4">
+                <div class="pixel-box p-2 min-h-[60px]">
+                    <div class="text-xs text-gray-400 mb-1">GRAVEYARD (BLACK)</div>
+                    <div id="captured-w" class="flex flex-wrap gap-2 items-center"></div>
+                </div>
+                <div class="pixel-box p-2 min-h-[60px]">
+                    <div class="text-xs text-gray-400 mb-1">GRAVEYARD (WHITE)</div>
+                    <div id="captured-b" class="flex flex-wrap gap-2 items-center"></div>
+                </div>
+            </div>
+        </div>
 
-        <!-- Rules Panel -->
-<!-- Right: Guide Book (Modified) -->
+        <!-- Right: Guide Book -->
         <div class="pixel-box w-full lg:w-96 p-6 text-base h-fit max-h-[800px] overflow-y-auto relative">
             <div class="flex justify-between items-center border-b-4 border-white pb-2 mb-6">
                 <h2 class="text-3xl font-bold text-yellow-400">GUIDE BOOK</h2>
@@ -240,67 +228,78 @@
             
             <!-- Korean Guide (Default) -->
             <div id="guide-kr" class="space-y-6 text-gray-200">
-                <!-- 종족 설명 -->
-                <div class="bg-gray-800 p-3 border-2 border-gray-600">
-                    <h3 class="text-xl font-bold text-blue-300 mb-3">[ 종족 상성 ]</h3>
-                    <div class="text-sm space-y-2">
+                <!-- 1. 종족 상성 -->
+                <div class="bg-gray-800 p-4 border-2 border-gray-600 rounded">
+                    <h3 class="text-xl font-bold text-blue-300 mb-3">[ 1. 종족 상성 시스템 ]</h3>
+                    <p class="text-gray-400 text-sm mb-3">
+                        모든 기물(킹 제외)은 첫 이동 시 종족을 선택합니다.<br>
+                        자신보다 <strong>약한 상성</strong>의 기물을 공격할 수 없습니다.
+                    </p>
+                    <div class="text-base space-y-2 border-t border-gray-600 pt-2">
                         <div class="flex items-center justify-between">
-                            <span class="text-blue-400 font-bold">인간 (방패)</span>
-                            <span class="text-gray-400">></span>
-                            <span class="text-green-400 font-bold">엘프</span>
+                            <span class="text-blue-400 font-bold">인간 (Human)</span>
+                            <span class="text-gray-500 text-xs">공격가능 &rarr;</span>
+                            <span class="text-green-400 font-bold">엘프 (Elf)</span>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span class="text-green-400 font-bold">엘프 (나뭇잎)</span>
-                            <span class="text-gray-400">></span>
-                            <span class="text-red-400 font-bold">오크</span>
+                            <span class="text-green-400 font-bold">엘프 (Elf)</span>
+                            <span class="text-gray-500 text-xs">공격가능 &rarr;</span>
+                            <span class="text-red-400 font-bold">오크 (Orc)</span>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span class="text-red-400 font-bold">오크 (가시)</span>
-                            <span class="text-gray-400">></span>
-                            <span class="text-blue-400 font-bold">인간</span>
+                            <span class="text-red-400 font-bold">오크 (Orc)</span>
+                            <span class="text-gray-500 text-xs">공격가능 &rarr;</span>
+                            <span class="text-blue-400 font-bold">인간 (Human)</span>
                         </div>
-                        <p class="text-xs text-yellow-500 mt-2">* 킹은 상성을 무시합니다.</p>
+                        <p class="text-xs text-yellow-500 mt-2 font-bold">* 킹은 모든 상성을 무시하고 공격 가능합니다.</p>
                     </div>
                 </div>
 
-                <!-- 직업 설명 -->
+                <!-- 2. 직업 능력 -->
                 <div>
-                    <h3 class="text-xl font-bold text-yellow-300 mb-2">[ 직업 능력 ]</h3>
-                    <ul class="space-y-3 text-sm text-gray-300">
-                        <li>
-                            <strong class="text-red-400 block">오크 (ORC)</strong>
-                            - <span class="text-white">광전사:</span> 적 처치 시 1회 추가 이동<br>
-                            - <span class="text-white">징벌자:</span> 상성 무시하고 적을 중립화
+                    <h3 class="text-xl font-bold text-yellow-300 mb-3">[ 2. 직업별 특수 능력 ]</h3>
+                    <p class="text-gray-400 text-xs mb-2">폰(Pawn)은 두 번째 이동 시 직업을 선택합니다.</p>
+                    <ul class="space-y-4 text-sm text-gray-300">
+                        <li class="bg-slate-800 p-2 border border-slate-600">
+                            <strong class="text-red-400 block text-lg mb-1">오크 (ORC)</strong>
+                            <div class="pl-2 border-l-2 border-red-500">
+                                <p class="mb-1"><span class="text-white font-bold">광전사:</span> 적 기물 처치 시, 해당 턴에 1회 추가 이동이 가능합니다.</p>
+                                <p><span class="text-white font-bold">징벌자:</span> 상성상 공격할 수 없는 적을 공격하여 '중립(능력 없음)' 상태로 만듭니다.</p>
+                            </div>
                         </li>
-                        <li>
-                            <strong class="text-green-400 block">엘프 (ELF)</strong>
-                            - <span class="text-white">사수:</span> 전방의 적 공격 가능<br>
-                            - <span class="text-white">정령술사:</span> 처치 시 정령(폰) 소환
+                        <li class="bg-slate-800 p-2 border border-slate-600">
+                            <strong class="text-green-400 block text-lg mb-1">엘프 (ELF)</strong>
+                            <div class="pl-2 border-l-2 border-green-500">
+                                <p class="mb-1"><span class="text-white font-bold">사수:</span> 대각선뿐만 아니라 바로 앞(전방)의 적도 공격할 수 있습니다.</p>
+                                <p><span class="text-white font-bold">정령술사:</span> 적 처치 시, 그 자리에 아군 '정령(폰)'을 소환하고 자신은 돌아옵니다.</p>
+                            </div>
                         </li>
-                        <li>
-                            <strong class="text-blue-400 block">인간 (HUMAN)</strong>
-                            - <span class="text-white">사제:</span> 죽은 아군 폰 부활 (1회)<br>
-                            - <span class="text-white">장수:</span> 이동하며 양옆 대각선 적 처치
+                        <li class="bg-slate-800 p-2 border border-slate-600">
+                            <strong class="text-blue-400 block text-lg mb-1">인간 (HUMAN)</strong>
+                            <div class="pl-2 border-l-2 border-blue-500">
+                                <p class="mb-1"><span class="text-white font-bold">사제:</span> 자신의 행동을 소모하여 죽은 아군 폰 1기를 부활시킵니다. (기물당 1회)</p>
+                                <p><span class="text-white font-bold">장수:</span> 이동 경로의 좌우 대각선에 위치한 적들을 동시에 처치합니다. (빗겨치기)</p>
+                            </div>
                         </li>
                     </ul>
                 </div>
 
-                <!-- 특수 규칙 -->
+                <!-- 3. 특수 진화 -->
                 <div>
-                    <h3 class="text-xl font-bold text-purple-300 mb-2">[ 특수 진화 ]</h3>
-                    <ul class="list-disc pl-4 space-y-2 text-sm">
-                        <li>
-                            <strong class="text-purple-400">룩 & 비숍 (2회 이동 시):</strong><br>
-                            맵에 가로(행) 또는 세로(열)을 추가하여 확장합니다.
+                    <h3 class="text-xl font-bold text-purple-300 mb-3">[ 3. 상급 기물 각성 ]</h3>
+                    <ul class="list-none space-y-3 text-sm">
+                        <li class="border-l-4 border-purple-500 pl-3">
+                            <strong class="text-purple-400 text-lg">룩 & 비숍</strong> <span class="text-xs bg-gray-700 px-1 rounded">2회 이동 시</span><br>
+                            전용 기술 버튼이 활성화됩니다. 맵에 가로줄(행) 또는 세로줄(열)을 영구적으로 추가하여 전장을 확장합니다.
                         </li>
-                        <li>
-                            <strong class="text-pink-400">퀸 (1회 한정):</strong><br>
-                            맵의 빈 공간으로 순간이동합니다.<br>
-                            <span class="text-gray-500 text-xs">(체크메이트 유발 위치/자살 위치 불가)</span>
+                        <li class="border-l-4 border-pink-500 pl-3">
+                            <strong class="text-pink-400 text-lg">퀸</strong> <span class="text-xs bg-gray-700 px-1 rounded">1회 한정</span><br>
+                            맵의 비어있는 아무 칸으로나 <strong>순간이동</strong> 할 수 있습니다.<br>
+                            <span class="text-gray-500 text-xs">* 단, 상대를 즉시 체크메이트 시키거나 자신의 킹을 위험하게 하는 곳으로는 이동 불가.</span>
                         </li>
-                        <li>
-                            <strong class="text-red-500">나이트 (4회 이동 시):</strong><br>
-                            드래곤으로 진화하여 전방 도약 공격이 추가됩니다.
+                        <li class="border-l-4 border-red-500 pl-3">
+                            <strong class="text-red-500 text-lg">나이트</strong> <span class="text-xs bg-gray-700 px-1 rounded">4회 이동 시</span><br>
+                            <strong>드래곤</strong>으로 진화합니다. 기존 이동 범위에 더해, 전방으로 한 칸 더 도약할 수 있는 능력이 추가됩니다.
                         </li>
                     </ul>
                 </div>
@@ -308,710 +307,723 @@
 
             <!-- English Guide (Hidden) -->
             <div id="guide-en" class="space-y-6 text-gray-200 hidden">
-                <!-- Race Info -->
-                <div class="bg-gray-800 p-3 border-2 border-gray-600">
-                    <h3 class="text-xl font-bold text-blue-300 mb-3">[ FACTIONS ]</h3>
-                    <div class="text-sm space-y-2">
+                <!-- 1. Faction System -->
+                <div class="bg-gray-800 p-4 border-2 border-gray-600 rounded">
+                    <h3 class="text-xl font-bold text-blue-300 mb-3">[ 1. FACTION SYSTEM ]</h3>
+                    <p class="text-gray-400 text-sm mb-3">
+                        All pieces (except King) choose a Faction on their 1st move.<br>
+                        You <strong>CANNOT ATTACK</strong> enemies that have an advantage over you.
+                    </p>
+                    <div class="text-base space-y-2 border-t border-gray-600 pt-2">
                         <div class="flex items-center justify-between">
-                            <span class="text-blue-400 font-bold">HUMAN</span>
-                            <span class="text-gray-400">></span>
-                            <span class="text-green-400 font-bold">ELF</span>
+                            <span class="text-blue-400 font-bold">HUMAN (Shield)</span>
+                            <span class="text-gray-500 text-xs">Strong vs &rarr;</span>
+                            <span class="text-green-400 font-bold">ELF (Elf)</span>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span class="text-green-400 font-bold">ELF</span>
-                            <span class="text-gray-400">></span>
-                            <span class="text-red-400 font-bold">ORC</span>
+                            <span class="text-green-400 font-bold">ELF (Leaf)</span>
+                            <span class="text-gray-500 text-xs">Strong vs &rarr;</span>
+                            <span class="text-red-400 font-bold">ORC (Orc)</span>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span class="text-red-400 font-bold">ORC</span>
-                            <span class="text-gray-400">></span>
-                            <span class="text-blue-400 font-bold">HUMAN</span>
+                            <span class="text-red-400 font-bold">ORC (Spike)</span>
+                            <span class="text-gray-500 text-xs">Strong vs &rarr;</span>
+                            <span class="text-blue-400 font-bold">HUMAN (Human)</span>
                         </div>
-                        <p class="text-xs text-yellow-500 mt-2">* King ignores advantage.</p>
+                        <p class="text-xs text-yellow-500 mt-2 font-bold">* King ignores all faction advantages.</p>
                     </div>
                 </div>
 
-                <!-- Jobs -->
+                <!-- 2. Job Abilities -->
                 <div>
-                    <h3 class="text-xl font-bold text-yellow-300 mb-2">[ JOBS ]</h3>
-                    <ul class="space-y-3 text-sm text-gray-300">
-                        <li>
-                            <strong class="text-red-400 block">ORC</strong>
-                            - <span class="text-white">Berserker:</span> Move again after kill<br>
-                            - <span class="text-white">Punisher:</span> Neutralize immune enemies
+                    <h3 class="text-xl font-bold text-yellow-300 mb-3">[ 2. JOB ABILITIES ]</h3>
+                    <p class="text-gray-400 text-xs mb-2">Pawns choose a Job on their 2nd move.</p>
+                    <ul class="space-y-4 text-sm text-gray-300">
+                        <li class="bg-slate-800 p-2 border border-slate-600">
+                            <strong class="text-red-400 block text-lg mb-1">ORC</strong>
+                            <div class="pl-2 border-l-2 border-red-500">
+                                <p class="mb-1"><span class="text-white font-bold">Berserker:</span> Can move one more time immediately after killing an enemy.</p>
+                                <p><span class="text-white font-bold">Punisher:</span> Attacks immune enemies to turn them 'Neutral' instead of killing.</p>
+                            </div>
                         </li>
-                        <li>
-                            <strong class="text-green-400 block">ELF</strong>
-                            - <span class="text-white">Archer:</span> Attack forward<br>
-                            - <span class="text-white">Elementalist:</span> Summon Spirit on kill
+                        <li class="bg-slate-800 p-2 border border-slate-600">
+                            <strong class="text-green-400 block text-lg mb-1">ELF</strong>
+                            <div class="pl-2 border-l-2 border-green-500">
+                                <p class="mb-1"><span class="text-white font-bold">Archer:</span> Can attack enemies directly in front (Forward Attack).</p>
+                                <p><span class="text-white font-bold">Elementalist:</span> Summons a friendly 'Spirit (Pawn)' at the enemy's location upon kill.</p>
+                            </div>
                         </li>
-                        <li>
-                            <strong class="text-blue-400 block">HUMAN</strong>
-                            - <span class="text-white">Priest:</span> Revive dead Pawn (1 time)<br>
-                            - <span class="text-white">General:</span> Cleave attack while moving
+                        <li class="bg-slate-800 p-2 border border-slate-600">
+                            <strong class="text-blue-400 block text-lg mb-1">HUMAN</strong>
+                            <div class="pl-2 border-l-2 border-blue-500">
+                                <p class="mb-1"><span class="text-white font-bold">Priest:</span> Consumes action to revive 1 dead friendly Pawn. (Once per piece)</p>
+                                <p><span class="text-white font-bold">General:</span> Kills enemies on diagonal left/right while moving forward (Cleave).</p>
+                            </div>
                         </li>
                     </ul>
                 </div>
 
-                <!-- Special -->
+                <!-- 3. Evolution -->
                 <div>
-                    <h3 class="text-xl font-bold text-purple-300 mb-2">[ EVOLUTION ]</h3>
-                    <ul class="list-disc pl-4 space-y-2 text-sm">
-                        <li>
-                            <strong class="text-purple-400">Rook & Bishop (Move 2x):</strong><br>
-                            Expand map size (Add Row/Col).
+                    <h3 class="text-xl font-bold text-purple-300 mb-3">[ 3. EVOLUTION ]</h3>
+                    <ul class="list-none space-y-3 text-sm">
+                        <li class="border-l-4 border-purple-500 pl-3">
+                            <strong class="text-purple-400 text-lg">Rook & Bishop</strong> <span class="text-xs bg-gray-700 px-1 rounded">After 2 moves</span><br>
+                            Unlocks skill button. Use to permanently expand the board size (Add Row or Column).
                         </li>
-                        <li>
-                            <strong class="text-pink-400">Queen (1 Use):</strong><br>
-                            Teleport to empty space.<br>
-                            <span class="text-gray-500 text-xs">(Cannot checkmate or self-check)</span>
+                        <li class="border-l-4 border-pink-500 pl-3">
+                            <strong class="text-pink-400 text-lg">Queen</strong> <span class="text-xs bg-gray-700 px-1 rounded">One Time Use</span><br>
+                            Can <strong>Teleport</strong> to any empty square on the board.<br>
+                            <span class="text-gray-500 text-xs">* Cannot teleport to cause immediate Checkmate or Self-Check.</span>
                         </li>
-                        <li>
-                            <strong class="text-red-500">Knight (Move 4x):</strong><br>
-                            Evolve into Dragon (Extended range).
+                        <li class="border-l-4 border-red-500 pl-3">
+                            <strong class="text-red-500 text-lg">Knight</strong> <span class="text-xs bg-gray-700 px-1 rounded">After 4 moves</span><br>
+                            Evolves into a <strong>Dragon</strong>. Gains extended range (Forward Leap) in addition to standard moves.
                         </li>
                     </ul>
                 </div>
             </div>
         </div>
-    </div>
+    </div>
 
-    <!-- Modals -->
-    <div id="selection-modal" class="hidden fixed inset-0 bg-black/90 flex flex-col items-center justify-center z-50 backdrop-blur-sm px-4">
-        <div class="pixel-box p-8 max-w-3xl w-full text-center border-4 border-yellow-400 shadow-[0_0_30px_rgba(241,196,15,0.3)]">
-            <h2 id="modal-title" class="text-5xl font-bold text-white mb-2 drop-shadow-[4px_4px_0_#000]">LEVEL UP</h2>
-            <p id="modal-desc" class="text-2xl text-gray-300 mb-8 tracking-widest">CHOOSE YOUR DESTINY</p>
-            <div id="card-container" class="flex flex-wrap gap-4 justify-center"></div>
-        </div>
-    </div>
+    <!-- Modals -->
+    <div id="selection-modal" class="hidden fixed inset-0 bg-black/90 flex flex-col items-center justify-center z-50 backdrop-blur-sm px-4">
+        <div class="pixel-box p-8 max-w-3xl w-full text-center border-4 border-yellow-400 shadow-[0_0_30px_rgba(241,196,15,0.3)]">
+            <h2 id="modal-title" class="text-5xl font-bold text-white mb-2 drop-shadow-[4px_4px_0_#000]">LEVEL UP</h2>
+            <p id="modal-desc" class="text-2xl text-gray-300 mb-8 tracking-widest">CHOOSE YOUR DESTINY</p>
+            <div id="card-container" class="flex flex-wrap gap-4 justify-center"></div>
+        </div>
+    </div>
 
-    <div id="game-end-modal" class="hidden fixed inset-0 bg-black/95 flex items-center justify-center z-50">
-        <div class="pixel-box p-10 text-center border-8 border-red-500">
-            <h2 id="end-title" class="text-6xl font-bold mb-4 text-white drop-shadow-[5px_5px_0_#c0392b]">GAME OVER</h2>
-            <p id="end-message" class="text-2xl mb-8 text-gray-300">...</p>
-            <button onclick="closeEndModal()" class="pixel-btn bg-green-600 text-white px-8 py-4 text-3xl">NEW GAME</button>
-        </div>
-    </div>
+    <div id="game-end-modal" class="hidden fixed inset-0 bg-black/95 flex items-center justify-center z-50">
+        <div class="pixel-box p-10 text-center border-8 border-red-500">
+            <h2 id="end-title" class="text-6xl font-bold mb-4 text-white drop-shadow-[5px_5px_0_#c0392b]">GAME OVER</h2>
+            <p id="end-message" class="text-2xl mb-8 text-gray-300">...</p>
+            <button onclick="closeEndModal()" class="pixel-btn bg-green-600 text-white px-8 py-4 text-3xl">NEW GAME</button>
+        </div>
+    </div>
 
-    <script>
-        // --- Constants & Config ---
-        const COLORS = { WHITE: 'w', BLACK: 'b' };
-        const PIECES = { PAWN: 'p', ROOK: 'r', KNIGHT: 'n', BISHOP: 'b', QUEEN: 'q', KING: 'k' };
-        const RACES = { HUMAN: 'HUMAN', ORC: 'ORC', ELF: 'ELF', NEUTRAL: 'NEUTRAL' };
-        const JOBS = {
-            BERSERKER: 'BERSERKER', PUNISHER: 'PUNISHER',
-            ARCHER: 'ARCHER', ELEMENTALIST: 'ELEMENTALIST',
-            PRIEST: 'PRIEST', GENERAL: 'GENERAL'
-        };
-        
-        const RACE_ADVANTAGE = { [RACES.HUMAN]: RACES.ELF, [RACES.ELF]: RACES.ORC, [RACES.ORC]: RACES.HUMAN };
-
-        const PIECE_ICONS = {
-            [PIECES.PAWN]: 'fa-chess-pawn', [PIECES.ROOK]: 'fa-chess-rook',
-            [PIECES.KNIGHT]: 'fa-chess-knight', [PIECES.BISHOP]: 'fa-chess-bishop',
-            [PIECES.QUEEN]: 'fa-chess-queen', [PIECES.KING]: 'fa-chess-king'
-        };
-        const JOB_ICONS = {
-            [JOBS.BERSERKER]: 'fa-fire', [JOBS.PUNISHER]: 'fa-gavel',
-            [JOBS.ARCHER]: 'fa-bullseye', [JOBS.ELEMENTALIST]: 'fa-wind',
-            [JOBS.PRIEST]: 'fa-cross', [JOBS.GENERAL]: 'fa-flag'
-        };
-
-        class ChessGame {
-            constructor() {
-                this.boardElement = document.getElementById('board');
-                this.statusElement = document.getElementById('status');
-                this.selectionModal = document.getElementById('selection-modal');
-                this.cardContainer = document.getElementById('card-container');
-                this.skillBtn = document.getElementById('skill-btn');
-                this.resetGame();
-            }
-
-            resetGame() {
-                this.rows = 8; this.cols = 8;
-                this.turn = COLORS.WHITE;
-                this.board = this.createInitialBoard();
-                this.selectedSquare = null;
-                this.validMoves = [];
-                this.capturedPieces = { w: [], b: [] };
-                this.graveyard = [];
-                this.gameActive = true;
-                this.gamePaused = false;
-                this.pendingPiecePos = null;
-                this.pendingAction = null;
-                this.checkState = null;
-                this.extraTurnAvailable = false;
-                this.teleportMode = false; 
-                this.renderBoard();
-                this.updateStatus();
-                this.updateCapturedUI();
-                this.skillBtn.classList.add('hidden');
-            }
-
-            createInitialBoard() {
-                const board = Array(8).fill(null).map(() => Array(8).fill(null));
-                const setupRow = (row, color, types) => {
-                    types.forEach((type, col) => { board[row][col] = this.createPiece(type, color); });
-                };
-                const backRow = [PIECES.ROOK, PIECES.KNIGHT, PIECES.BISHOP, PIECES.QUEEN, PIECES.KING, PIECES.BISHOP, PIECES.KNIGHT, PIECES.ROOK];
-                const pawnRow = Array(8).fill(PIECES.PAWN);
-                setupRow(0, COLORS.BLACK, backRow);
-                setupRow(1, COLORS.BLACK, pawnRow);
-                setupRow(6, COLORS.WHITE, pawnRow);
-                setupRow(7, COLORS.WHITE, backRow);
-                return board;
-            }
-
-            createPiece(type, color) {
-                return {
-                    type, color, race: null, job: null, moveCount: 0,
-                    isSpirit: false, priestUsed: false, isDragon: false, teleportUsed: false
-                };
-            }
-
-            renderBoard() {
-                this.boardElement.innerHTML = '';
-                this.boardElement.style.gridTemplateColumns = `repeat(${this.cols}, minmax(45px, 1fr))`;
-                
-                let kingInCheckPos = this.checkState ? this.findKing(this.checkState) : null;
-
-                for (let r = 0; r < this.rows; r++) {
-                    for (let c = 0; c < this.cols; c++) {
-                        const square = document.createElement('div');
-                        const isDark = (r + c) % 2 === 1;
-                        square.className = `flex items-center justify-center relative aspect-square ${isDark ? 'square-dark' : 'square-light'}`;
-
-                        // Highlights
-                        if (this.selectedSquare && this.selectedSquare.r === r && this.selectedSquare.c === c) square.classList.add('square-selected');
-                        if (kingInCheckPos && kingInCheckPos.r === r && kingInCheckPos.c === c) square.classList.add('square-check');
-
-                        // Move Markers
-                        const move = this.validMoves.find(m => m.r === r && m.c === c);
-                        if (move) {
-                            if (move.type === 'NEUTRALIZE' || move.type === 'REVIVE') {
-                                square.classList.add('square-skill');
-                                if (move.type === 'REVIVE') square.classList.add('square-revive');
-                            } else if (move.type === 'TELEPORT') {
-                                square.classList.add('square-teleport');
-                            } else if (this.board[r][c] || move.isEnPassant || (move.cleaveTarget)) {
-                                square.classList.add('square-capture');
-                            } else {
-                                square.classList.add('square-valid');
-                            }
-                        }
-
-                        // Render Piece
-                        const piece = this.board[r][c];
-                        if (piece) {
-                            square.innerHTML = this.getPieceHTML(piece);
-                        }
-
-                        square.onclick = () => this.handleSquareClick(r, c);
-                        this.boardElement.appendChild(square);
-                    }
-                }
-            }
-
-            getPieceHTML(piece) {
-                let raceClass = 'race-none';
-                if (piece.race === RACES.HUMAN) raceClass = 'race-human';
-                if (piece.race === RACES.ORC) raceClass = 'race-orc';
-                if (piece.race === RACES.ELF) raceClass = 'race-elf';
-
-                let iconClass = PIECE_ICONS[piece.type];
-                if (piece.isDragon) iconClass = 'fa-dragon';
-
-                let colorClass = piece.color === 'w' ? 'piece-w' : 'piece-b';
-                let jobHTML = piece.job ? `<div class="job-badge"><i class="fas ${JOB_ICONS[piece.job]}"></i></div>` : '';
-                let effectHTML = piece.isSpirit ? `<div class="spirit-effect"></div>` : '';
-                
-                let containerClass = `token-container ${colorClass} ${raceClass}`;
-                if (piece.isDragon) containerClass += ` dragon-effect`;
-                
-                return `
-                    <div class="${containerClass}">
-                        <div class="token-bg"></div>
-                        ${effectHTML}
-                        <i class="fas ${iconClass} token-icon"></i>
-                        ${jobHTML}
-                    </div>
-                `;
-            }
-
-            handleSquareClick(r, c) {
-                if (!this.gameActive || this.gamePaused) return;
-                const move = this.validMoves.find(m => m.r === r && m.c === c);
-                if (this.selectedSquare && move) {
-                    this.executeMove(this.selectedSquare.r, this.selectedSquare.c, move);
-                    return;
-                }
-                const piece = this.board[r][c];
-                if (piece && piece.color === this.turn) {
-                    this.selectedSquare = { r, c };
-                    this.teleportMode = false; 
-                    this.checkSkillAvailability(piece);
-                    this.validMoves = this.getLegalMoves(r, c, piece);
-                    if (piece.job === JOBS.PRIEST && !piece.priestUsed) this.addReviveMoves(piece);
-                    this.renderBoard();
-                    return;
-                }
-                this.selectedSquare = null;
-                this.validMoves = [];
-                this.skillBtn.classList.add('hidden');
-                this.teleportMode = false;
-                this.renderBoard();
-            }
-
-            checkSkillAvailability(piece) {
-                let showBtn = false;
-                if ((piece.type === PIECES.ROOK || piece.type === PIECES.BISHOP) && piece.moveCount >= 2) showBtn = true;
-                if (piece.type === PIECES.QUEEN && !piece.teleportUsed) showBtn = true;
-                
-                if (showBtn) {
-                    this.skillBtn.classList.remove('hidden');
-                    this.skillBtn.innerText = piece.type === PIECES.QUEEN ? "TELEPORT" : "EXPAND";
-                } else {
-                    this.skillBtn.classList.add('hidden');
-                }
-            }
-
-            activateSkill() {
-                if (!this.selectedSquare) return;
-                const { r, c } = this.selectedSquare;
-                const piece = this.board[r][c];
-
-                if (piece.type === PIECES.QUEEN) {
-                    this.teleportMode = !this.teleportMode;
-                    if (this.teleportMode) {
-                        this.skillBtn.classList.add('bg-purple-800');
-                        this.validMoves = [];
-                        for(let i=0; i<this.rows; i++){
-                            for(let j=0; j<this.cols; j++){
-                                if(!this.board[i][j]) {
-                                    // Queen Teleport Safety Checks
-                                    const move = {r:i, c:j, type: 'TELEPORT'};
-                                    if (this.isMoveSafe(r, c, move) && !this.doesMoveCauseCheckmate(r, c, move)) {
-                                        this.validMoves.push(move);
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        this.skillBtn.classList.remove('bg-purple-800');
-                        this.validMoves = this.getLegalMoves(r, c, piece);
-                    }
-                    this.renderBoard();
-                } else if (piece.type === PIECES.ROOK || piece.type === PIECES.BISHOP) {
-                    this.showExpansionModal(piece.type);
-                }
-            }
-
-            isMoveSafe(r, c, move) {
-                const piece = this.board[r][c];
-                const savedTarget = this.board[move.r][move.c];
-                const savedSource = this.board[r][c];
-                this.board[move.r][move.c] = piece;
-                this.board[r][c] = null;
-                const kingSafe = !this.isKingInCheck(piece.color);
-                this.board[r][c] = savedSource;
-                this.board[move.r][move.c] = savedTarget;
-                return kingSafe;
-            }
-
-            doesMoveCauseCheckmate(r, c, move) {
-                const piece = this.board[r][c];
-                const savedTarget = this.board[move.r][move.c];
-                const savedSource = this.board[r][c];
-                this.board[move.r][move.c] = piece;
-                this.board[r][c] = null;
-                const enemyColor = piece.color === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
-                const isEnemyCheckmated = this.isCheckmate(enemyColor);
-                this.board[r][c] = savedSource;
-                this.board[move.r][move.c] = savedTarget;
-                return isEnemyCheckmated;
-            }
-
-            showExpansionModal(type) {
-                this.gamePaused = true;
-                this.selectionModal.classList.remove('hidden');
-                this.selectionModal.classList.add('flex');
-                this.cardContainer.innerHTML = '';
-                
-                const isRow = type === PIECES.ROOK;
-                document.getElementById('modal-title').innerText = isRow ? "ADD ROW" : "ADD COL";
-                document.getElementById('modal-desc').innerText = "SELECT POSITION";
-                
-                const max = isRow ? this.rows : this.cols;
-                for(let i=0; i <= max; i++) {
-                    const btn = document.createElement('button');
-                    btn.className = "pixel-btn bg-gray-700 text-white p-3 min-w-[50px]";
-                    btn.innerText = `${i}`;
-                    btn.onclick = () => this.applyExpansion(type, i);
-                    this.cardContainer.appendChild(btn);
-                }
-            }
-
-            applyExpansion(type, index) {
-                if (type === PIECES.ROOK) {
-                    const newRow = Array(this.cols).fill(null);
-                    this.board.splice(index, 0, newRow);
-                    this.rows++;
-                } else {
-                    for(let r=0; r<this.rows; r++) this.board[r].splice(index, 0, null);
-                    this.cols++;
-                }
-                this.closeModal();
-                this.selectedSquare = null; 
-                this.validMoves = [];
-                this.renderBoard();
-                this.endTurn();
-            }
-
-            closeModal() {
-                this.selectionModal.classList.add('hidden');
-                this.selectionModal.classList.remove('flex');
-                this.gamePaused = false;
-            }
-
-            executeMove(fromR, fromC, move) {
-                const piece = this.board[fromR][fromC];
-                const target = this.board[move.r][move.c];
-                let captureOccurred = false;
-
-                if (move.type === 'TELEPORT') {
-                    this.board[move.r][move.c] = piece; this.board[fromR][fromC] = null;
-                    piece.teleportUsed = true; this.teleportMode = false;
-                    this.endTurn(); return;
-                }
-                if (move.type === 'REVIVE') {
-                    const deadPawn = this.graveyard.filter(p => p.color === piece.color && p.type === PIECES.PAWN).pop();
-                    const idx = this.graveyard.lastIndexOf(deadPawn);
-                    if(idx > -1) this.graveyard.splice(idx, 1);
-                    this.board[move.r][move.c] = deadPawn; piece.priestUsed = true;
-                    this.endTurn(); return;
-                }
-                if (move.type === 'NEUTRALIZE') {
-                    if (target) { target.race = RACES.NEUTRAL; target.job = null; }
-                    this.endTurn(); return;
-                }
-
-                if (target) {
-                    this.graveyard.push(target);
-                    this.capturedPieces[this.turn === COLORS.WHITE ? 'w' : 'b'].push(target);
-                    captureOccurred = true;
-                }
-                if (piece.job === JOBS.GENERAL && move.cleaveTarget) {
-                    const cleaveEnemy = this.board[move.cleaveTarget.r][move.cleaveTarget.c];
-                    if (cleaveEnemy) {
-                        this.graveyard.push(cleaveEnemy);
-                        this.capturedPieces[this.turn === COLORS.WHITE ? 'w' : 'b'].push(cleaveEnemy);
-                        this.board[move.cleaveTarget.r][move.cleaveTarget.c] = null;
-                        captureOccurred = true;
-                    }
-                }
-
-                this.board[move.r][move.c] = piece;
-                this.board[fromR][fromC] = null;
-                piece.moveCount++;
-
-                if (piece.type === PIECES.KNIGHT && piece.moveCount === 4 && !piece.isDragon) {
-                    piece.isDragon = true;
-                    this.statusElement.innerHTML = `<span class="text-red-500 font-bold">KNIGHT EVOLVED TO DRAGON!</span>`;
-                }
-                if (piece.job === JOBS.ELEMENTALIST && captureOccurred) {
-                    this.board[fromR][fromC] = piece;
-                    const newPawn = this.createPiece(PIECES.PAWN, piece.color);
-                    newPawn.race = RACES.ELF; newPawn.isSpirit = true; newPawn.moveCount = 1;
-                    this.board[move.r][move.c] = newPawn;
-                }
-                if (piece.type === PIECES.PAWN && !piece.job && !piece.isSpirit) {
-                    if ((piece.color === COLORS.WHITE && move.r === 0) || (piece.color === COLORS.BLACK && move.r === this.rows - 1)) {
-                        piece.type = PIECES.QUEEN;
-                    }
-                }
-
-                // Growth System Triggers
-                if (piece.type !== PIECES.KING && !piece.isSpirit && piece.moveCount === 1) {
-                    this.pendingPiecePos = { r: move.r, c: move.c };
-                    this.pendingAction = 'RACE_SELECT';
-                    this.showSelectionModal('RACE');
-                    return;
-                }
-                if (piece.type === PIECES.PAWN && !piece.isSpirit && piece.moveCount === 2 && !piece.job) {
-                    this.pendingPiecePos = { r: move.r, c: move.c };
-                    this.pendingAction = 'JOB_SELECT';
-                    this.showSelectionModal('JOB');
-                    return;
-                }
-
-                if (piece.job === JOBS.BERSERKER && captureOccurred && !this.extraTurnAvailable) {
-                    this.extraTurnAvailable = true;
-                    this.selectedSquare = null; this.validMoves = [];
-                    this.renderBoard();
-                    this.statusElement.innerHTML = `<span class="text-red-500 font-bold">BERSERKER RAGE! MOVE AGAIN!</span>`;
-                    return;
-                }
-                this.extraTurnAvailable = false;
-                this.endTurn();
-            }
-
-            endTurn() {
-                const nextTurn = this.turn === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
-                this.checkState = this.isKingInCheck(nextTurn) ? nextTurn : null;
-                if (this.checkState && this.isCheckmate(nextTurn)) {
-                    this.endGame(this.turn);
-                    return;
-                }
-                this.turn = nextTurn;
-                this.selectedSquare = null;
-                this.validMoves = [];
-                this.skillBtn.classList.add('hidden');
-                this.teleportMode = false;
-                this.updateStatus();
-                this.updateCapturedUI();
-                this.renderBoard();
-            }
-
-            canAttack(attacker, defender) {
-                if (attacker.type === PIECES.KING) return true;
-                if (!attacker.race || !defender.race || defender.race === RACES.NEUTRAL) return true;
-                return RACE_ADVANTAGE[defender.race] !== attacker.race;
-            }
-
-            getLegalMoves(r, c, piece) {
-                const pseudoMoves = this.getPseudoLegalMoves(r, c, piece);
-                return pseudoMoves.filter(move => {
-                    if (['NEUTRALIZE', 'REVIVE', 'TELEPORT'].includes(move.type)) return true;
-                    const savedTarget = this.board[move.r][move.c];
-                    const savedSource = this.board[r][c];
-                    this.board[move.r][move.c] = piece;
-                    this.board[r][c] = null;
-                    const kingSafe = !this.isKingInCheck(piece.color);
-                    this.board[r][c] = savedSource;
-                    this.board[move.r][move.c] = savedTarget;
-                    return kingSafe;
-                });
-            }
-
-            getPseudoLegalMoves(r, c, piece) {
-                const moves = [];
-                const forward = piece.color === COLORS.WHITE ? -1 : 1;
-                const rows = this.rows; const cols = this.cols;
-
-                const addMove = (tr, tc) => {
-                    if (tr >= 0 && tr < rows && tc >= 0 && tc < cols) {
-                        const target = this.board[tr][tc];
-                        if (!target) { moves.push({ r: tr, c: tc }); return false; }
-                        else {
-                            if (target.color !== piece.color && this.canAttack(piece, target)) moves.push({ r: tr, c: tc });
-                            return true; 
-                        }
-                    } return true; 
-                };
-                const slide = (dirs) => {
-                    for (const [dr, dc] of dirs) {
-                        let tr = r + dr, tc = c + dc;
-                        while (tr >= 0 && tr < rows && tc >= 0 && tc < cols) {
-                            if (addMove(tr, tc)) break;
-                            tr += dr; tc += dc;
-                        }
-                    }
-                };
-
-                if (piece.type === PIECES.PAWN) {
-                    if (r + forward >= 0 && r + forward < rows && !this.board[r + forward][c]) {
-                        moves.push({ r: r + forward, c: c });
-                        if (piece.moveCount === 0 && r + forward * 2 >= 0 && r + forward * 2 < rows && !this.board[r + forward * 2][c]) {
-                            moves.push({ r: r + forward * 2, c: c });
-                        }
-                    }
-                    [[forward, -1], [forward, 1]].forEach(([dr, dc]) => {
-                        const tr = r + dr, tc = c + dc;
-                        if (tr>=0 && tr<rows && tc>=0 && tc<cols) {
-                            const target = this.board[tr][tc];
-                            let generalTarget = null;
-                            if (piece.job === JOBS.GENERAL) {
-                                const oppC = c + (dc * -1);
-                                if(oppC>=0 && oppC<cols) {
-                                    const opT = this.board[r+dr][oppC];
-                                    if(opT && opT.color!==piece.color && this.canAttack(piece, opT)) generalTarget = {r:r+dr, c:oppC};
-                                }
-                            }
-                            if (target && target.color !== piece.color) {
-                                if (this.canAttack(piece, target)) {
-                                    const m = { r: tr, c: tc };
-                                    if(generalTarget) m.cleaveTarget = generalTarget;
-                                    moves.push(m);
-                                } else if (piece.job === JOBS.PUNISHER) moves.push({ r: tr, c: tc, type: 'NEUTRALIZE' });
-                            } else if (!target && generalTarget) moves.push({ r: tr, c: tc, cleaveTarget: generalTarget });
-                        }
-                    });
-                    if (piece.job === JOBS.ARCHER) {
-                        const tr = r + forward;
-                        if(tr>=0 && tr<rows) {
-                            const t = this.board[tr][c];
-                            if(t && t.color !== piece.color && this.canAttack(piece, t)) moves.push({r:tr, c});
-                        }
-                    }
-                }
-                else if (piece.type === PIECES.KNIGHT) {
-                    const jumps = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
-                    jumps.forEach(([dr, dc]) => {
-                        addMove(r + dr, c + dc);
-                        if (piece.isDragon) addMove(r + dr + forward, c + dc);
-                    });
-                }
-                else if (piece.type === PIECES.ROOK) slide([[-1, 0], [1, 0], [0, -1], [0, 1]]);
-                else if (piece.type === PIECES.BISHOP) slide([[-1, -1], [-1, 1], [1, -1], [1, 1]]);
-                else if (piece.type === PIECES.QUEEN) slide([[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]]);
-                else if (piece.type === PIECES.KING) {
-                    [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([dr, dc]) => addMove(r + dr, c + dc));
-                }
-                return moves;
-            }
-            addReviveMoves(piece) {
-                const deadPawns = this.graveyard.filter(p => p.color === piece.color && p.type === PIECES.PAWN);
-                if (deadPawns.length > 0) {
-                    const spawnRow = piece.color === COLORS.WHITE ? this.rows - 2 : 1; 
-                    for(let col=0; col<this.cols; col++) {
-                        if (!this.board[spawnRow][col]) this.validMoves.push({ r: spawnRow, c: col, type: 'REVIVE' });
-                    }
-                }
-            }
-            findKing(color) {
-                for (let r = 0; r < this.rows; r++) {
-                    for (let c = 0; c < this.cols; c++) {
-                        const p = this.board[r][c];
-                        if (p && p.type === PIECES.KING && p.color === color) return { r, c };
-                    }
-                }
-                return null;
-            }
-            isKingInCheck(color) {
-                const kingPos = this.findKing(color);
-                if (!kingPos) return false;
-                const enemyColor = color === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
-                for (let r = 0; r < this.rows; r++) {
-                    for (let c = 0; c < this.cols; c++) {
-                        const p = this.board[r][c];
-                        if (p && p.color === enemyColor) {
-                            const moves = this.getPseudoLegalMoves(r, c, p);
-                            if (moves.some(m => m.r === kingPos.r && m.c === kingPos.c)) return true;
-                        }
-                    }
-                }
-                return false;
-            }
-            isCheckmate(color) { return this.isKingInCheck(color) && !this.hasAnyLegalMoves(color); }
-            hasAnyLegalMoves(color) {
-                for (let r = 0; r < this.rows; r++) {
-                    for (let c = 0; c < this.cols; c++) {
-                        const p = this.board[r][c];
-                        if (p && p.color === color && this.getLegalMoves(r, c, p).length > 0) return true;
-                    }
-                }
-                return false;
-            }
-            updateStatus() {
-                let text = this.turn === COLORS.WHITE ? "WHITE TURN" : "BLACK TURN";
-                if (this.checkState) text += " - <span class='text-red-400 font-bold'>CHECK!</span>";
-                this.statusElement.innerHTML = text;
-            }
-            updateCapturedUI() {
-                const render = (id, list) => {
-                    const el = document.getElementById(id);
-                    el.innerHTML = '';
-                    list.forEach(p => {
-                        el.innerHTML += this.getPieceHTML(p);
-                    });
-                    // Resize captured icons
-                    const tokens = el.querySelectorAll('.token-container');
-                    tokens.forEach(t => { t.style.width = '30px'; t.style.height = '30px'; t.querySelector('.token-icon').style.fontSize = '1rem'; });
-                };
-                render('captured-w', this.capturedPieces.w);
-                render('captured-b', this.capturedPieces.b);
-            }
-            endGame(winner) {
-                this.gameActive = false;
-                const modal = document.getElementById('game-end-modal');
-                document.getElementById('end-title').innerText = winner === 'draw' ? "DRAW" : `${winner === 'w' ? 'WHITE' : 'BLACK'} WINS!`;
-                document.getElementById('end-message').innerText = "GAME OVER";
-                modal.classList.remove('hidden');
-            }
-
-            showSelectionModal(mode) {
-                this.gamePaused = true;
-                this.selectionModal.classList.remove('hidden');
-                this.selectionModal.classList.add('flex');
-                this.cardContainer.innerHTML = '';
-                
-                const piece = this.pendingPiecePos ? this.board[this.pendingPiecePos.r][this.pendingPiecePos.c] : null;
-
-                if (mode === 'RACE') {
-                    this.createCard(RACES.HUMAN, 'HUMAN', 'Defend & Honor', 'fa-user-shield', 'text-blue-400', () => this.handleSelection('RACE', RACES.HUMAN));
-                    this.createCard(RACES.ORC, 'ORC', 'Blood & Glory', 'fa-hand-fist', 'text-red-500', () => this.handleSelection('RACE', RACES.ORC));
-                    this.createCard(RACES.ELF, 'ELF', 'Nature & Swift', 'fa-leaf', 'text-green-400', () => this.handleSelection('RACE', RACES.ELF));
-                } 
-                else if (mode === 'JOB') {
-                    if (piece.race === RACES.ORC) {
-                        this.createCard(JOBS.BERSERKER, 'BERSERKER', 'Kill Again', 'fa-fire', 'text-red-500', () => this.handleSelection('JOB', JOBS.BERSERKER));
-                        this.createCard(JOBS.PUNISHER, 'PUNISHER', 'Neutralize', 'fa-gavel', 'text-orange-500', () => this.handleSelection('JOB', JOBS.PUNISHER));
-                    } else if (piece.race === RACES.ELF) {
-                        this.createCard(JOBS.ARCHER, 'ARCHER', 'Snipe Forward', 'fa-bullseye', 'text-green-400', () => this.handleSelection('JOB', JOBS.ARCHER));
-                        this.createCard(JOBS.ELEMENTALIST, 'SUMMONER', 'Create Spirit', 'fa-wind', 'text-teal-400', () => this.handleSelection('JOB', JOBS.ELEMENTALIST));
-                    } else if (piece.race === RACES.HUMAN) {
-                        this.createCard(JOBS.PRIEST, 'PRIEST', 'Revive ally', 'fa-cross', 'text-blue-300', () => this.handleSelection('JOB', JOBS.PRIEST));
-                        this.createCard(JOBS.GENERAL, 'GENERAL', 'Cleave Attack', 'fa-flag', 'text-indigo-400', () => this.handleSelection('JOB', JOBS.GENERAL));
-                    }
-                }
-            }
-            createCard(value, title, desc, iconClass, colorClass, callback) {
-                const card = document.createElement('div');
-                card.className = `level-up-card p-6 w-36 flex flex-col items-center justify-center cursor-pointer bg-gray-800 border-4 border-white hover:border-yellow-400 transition-all`;
-                card.onclick = callback;
-                card.innerHTML = `
-                    <i class="fas ${iconClass} text-5xl ${colorClass} mb-4 drop-shadow-[2px_2px_0_#000]"></i>
-                    <h3 class="text-xl font-bold text-white mb-2">${title}</h3>
-                    <p class="text-xs text-gray-400 uppercase">${desc}</p>
-                `;
-                this.cardContainer.appendChild(card);
-            }
-            handleSelection(type, value) {
-                const piece = this.board[this.pendingPiecePos.r][this.pendingPiecePos.c];
-                if (type === 'RACE') piece.race = value;
-                else if (type === 'JOB') piece.job = value;
-                this.selectionModal.classList.add('hidden');
-                this.selectionModal.classList.remove('flex');
-                this.gamePaused = false;
-                this.renderBoard();
-                this.endTurn();
-            }
-        }
-
-        const game = new ChessGame();
-        function closeEndModal() {
-            document.getElementById('game-end-modal').classList.add('hidden');
-            game.resetGame();
-        }
-        // 언어 토글 기능
-                function toggleLanguage() {
-                    const krDiv = document.getElementById('guide-kr');
-                    const enDiv = document.getElementById('guide-en');
-                    const btn = document.getElementById('lang-toggle-btn');
+    <script>
+        // --- Constants & Config ---
+        const COLORS = { WHITE: 'w', BLACK: 'b' };
+        const PIECES = { PAWN: 'p', ROOK: 'r', KNIGHT: 'n', BISHOP: 'b', QUEEN: 'q', KING: 'k' };
+        const RACES = { HUMAN: 'HUMAN', ORC: 'ORC', ELF: 'ELF', NEUTRAL: 'NEUTRAL' };
+        const JOBS = {
+            BERSERKER: 'BERSERKER', PUNISHER: 'PUNISHER',
+            ARCHER: 'ARCHER', ELEMENTALIST: 'ELEMENTALIST',
+            PRIEST: 'PRIEST', GENERAL: 'GENERAL'
+        };
         
-                    if (krDiv.classList.contains('hidden')) {
-                        // 한글로 전환
-                        krDiv.classList.remove('hidden');
-                        enDiv.classList.add('hidden');
-                        btn.innerText = 'EN'; // 버튼은 '영어로 바꾸기' 의미
-                    } else {
-                        // 영어로 전환
-                        krDiv.classList.add('hidden');
-                        enDiv.classList.remove('hidden');
-                        btn.innerText = 'KR'; // 버튼은 '한글로 바꾸기' 의미
+        const RACE_ADVANTAGE = { [RACES.HUMAN]: RACES.ELF, [RACES.ELF]: RACES.ORC, [RACES.ORC]: RACES.HUMAN };
+
+        const PIECE_ICONS = {
+            [PIECES.PAWN]: 'fa-chess-pawn', [PIECES.ROOK]: 'fa-chess-rook',
+            [PIECES.KNIGHT]: 'fa-chess-knight', [PIECES.BISHOP]: 'fa-chess-bishop',
+            [PIECES.QUEEN]: 'fa-chess-queen', [PIECES.KING]: 'fa-chess-king'
+        };
+        const JOB_ICONS = {
+            [JOBS.BERSERKER]: 'fa-fire', [JOBS.PUNISHER]: 'fa-gavel',
+            [JOBS.ARCHER]: 'fa-bullseye', [JOBS.ELEMENTALIST]: 'fa-wind',
+            [JOBS.PRIEST]: 'fa-cross', [JOBS.GENERAL]: 'fa-flag'
+        };
+
+        class ChessGame {
+            constructor() {
+                this.boardElement = document.getElementById('board');
+                this.statusElement = document.getElementById('status');
+                this.selectionModal = document.getElementById('selection-modal');
+                this.cardContainer = document.getElementById('card-container');
+                this.skillBtn = document.getElementById('skill-btn');
+                this.resetGame();
+            }
+
+            resetGame() {
+                this.rows = 8; this.cols = 8;
+                this.turn = COLORS.WHITE;
+                this.board = this.createInitialBoard();
+                this.selectedSquare = null;
+                this.validMoves = [];
+                this.capturedPieces = { w: [], b: [] };
+                this.graveyard = [];
+                this.gameActive = true;
+                this.gamePaused = false;
+                this.pendingPiecePos = null;
+                this.pendingAction = null;
+                this.checkState = null;
+                this.extraTurnAvailable = false;
+                this.teleportMode = false; 
+                this.renderBoard();
+                this.updateStatus();
+                this.updateCapturedUI();
+                this.skillBtn.classList.add('hidden');
+            }
+
+            createInitialBoard() {
+                const board = Array(8).fill(null).map(() => Array(8).fill(null));
+                const setupRow = (row, color, types) => {
+                    types.forEach((type, col) => { board[row][col] = this.createPiece(type, color); });
+                };
+                const backRow = [PIECES.ROOK, PIECES.KNIGHT, PIECES.BISHOP, PIECES.QUEEN, PIECES.KING, PIECES.BISHOP, PIECES.KNIGHT, PIECES.ROOK];
+                const pawnRow = Array(8).fill(PIECES.PAWN);
+                setupRow(0, COLORS.BLACK, backRow);
+                setupRow(1, COLORS.BLACK, pawnRow);
+                setupRow(6, COLORS.WHITE, pawnRow);
+                setupRow(7, COLORS.WHITE, backRow);
+                return board;
+            }
+
+            createPiece(type, color) {
+                return {
+                    type, color, race: null, job: null, moveCount: 0,
+                    isSpirit: false, priestUsed: false, isDragon: false, teleportUsed: false
+                };
+            }
+
+            renderBoard() {
+                this.boardElement.innerHTML = '';
+                this.boardElement.style.gridTemplateColumns = `repeat(${this.cols}, minmax(45px, 1fr))`;
+                
+                let kingInCheckPos = this.checkState ? this.findKing(this.checkState) : null;
+
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const square = document.createElement('div');
+                        const isDark = (r + c) % 2 === 1;
+                        square.className = `flex items-center justify-center relative aspect-square ${isDark ? 'square-dark' : 'square-light'}`;
+
+                        // Highlights
+                        if (this.selectedSquare && this.selectedSquare.r === r && this.selectedSquare.c === c) square.classList.add('square-selected');
+                        if (kingInCheckPos && kingInCheckPos.r === r && kingInCheckPos.c === c) square.classList.add('square-check');
+
+                        // Move Markers
+                        const move = this.validMoves.find(m => m.r === r && m.c === c);
+                        if (move) {
+                            if (move.type === 'NEUTRALIZE' || move.type === 'REVIVE') {
+                                square.classList.add('square-skill');
+                                if (move.type === 'REVIVE') square.classList.add('square-revive');
+                            } else if (move.type === 'TELEPORT') {
+                                square.classList.add('square-teleport');
+                            } else if (this.board[r][c] || move.isEnPassant || (move.cleaveTarget)) {
+                                square.classList.add('square-capture');
+                            } else {
+                                square.classList.add('square-valid');
+                            }
+                        }
+
+                        // Render Piece
+                        const piece = this.board[r][c];
+                        if (piece) {
+                            square.innerHTML = this.getPieceHTML(piece);
+                        }
+
+                        square.onclick = () => this.handleSquareClick(r, c);
+                        this.boardElement.appendChild(square);
                     }
                 }
-    </script>
+            }
+
+            getPieceHTML(piece) {
+                let raceClass = 'race-none';
+                let jobClass = '';
+                
+                if (piece.race === RACES.HUMAN) raceClass = 'race-human';
+                if (piece.race === RACES.ORC) raceClass = 'race-orc';
+                if (piece.race === RACES.ELF) raceClass = 'race-elf';
+                
+                if (piece.job) jobClass = `job-${piece.job.toLowerCase()}`; 
+
+                let iconClass = PIECE_ICONS[piece.type];
+                if (piece.isDragon) iconClass = 'fa-dragon';
+
+                let colorClass = piece.color === 'w' ? 'piece-w' : 'piece-b';
+                let jobHTML = piece.job ? `<div class="job-badge"><i class="fas ${JOB_ICONS[piece.job]}"></i></div>` : '';
+                let effectHTML = piece.isSpirit ? `<div class="spirit-effect"></div>` : '';
+                
+                let containerClass = `token-container ${colorClass} ${raceClass} ${jobClass}`;
+                if (piece.isDragon) containerClass += ` dragon-effect`;
+                
+                return `
+                    <div class="${containerClass}">
+                        <div class="token-bg"></div>
+                        ${effectHTML}
+                        <i class="fas ${iconClass} token-icon"></i>
+                        ${jobHTML}
+                    </div>
+                `;
+            }
+
+            handleSquareClick(r, c) {
+                if (!this.gameActive || this.gamePaused) return;
+                const move = this.validMoves.find(m => m.r === r && m.c === c);
+                if (this.selectedSquare && move) {
+                    this.executeMove(this.selectedSquare.r, this.selectedSquare.c, move);
+                    return;
+                }
+                const piece = this.board[r][c];
+                if (piece && piece.color === this.turn) {
+                    this.selectedSquare = { r, c };
+                    this.teleportMode = false; 
+                    this.checkSkillAvailability(piece);
+                    this.validMoves = this.getLegalMoves(r, c, piece);
+                    if (piece.job === JOBS.PRIEST && !piece.priestUsed) this.addReviveMoves(piece);
+                    this.renderBoard();
+                    return;
+                }
+                this.selectedSquare = null;
+                this.validMoves = [];
+                this.skillBtn.classList.add('hidden');
+                this.teleportMode = false;
+                this.renderBoard();
+            }
+
+            checkSkillAvailability(piece) {
+                let showBtn = false;
+                if ((piece.type === PIECES.ROOK || piece.type === PIECES.BISHOP) && piece.moveCount >= 2) showBtn = true;
+                if (piece.type === PIECES.QUEEN && !piece.teleportUsed) showBtn = true;
+                
+                if (showBtn) {
+                    this.skillBtn.classList.remove('hidden');
+                    this.skillBtn.innerText = piece.type === PIECES.QUEEN ? "TELEPORT" : "EXPAND";
+                } else {
+                    this.skillBtn.classList.add('hidden');
+                }
+            }
+
+            activateSkill() {
+                if (!this.selectedSquare) return;
+                const { r, c } = this.selectedSquare;
+                const piece = this.board[r][c];
+
+                if (piece.type === PIECES.QUEEN) {
+                    this.teleportMode = !this.teleportMode;
+                    if (this.teleportMode) {
+                        this.skillBtn.classList.add('bg-purple-800');
+                        this.validMoves = [];
+                        for(let i=0; i<this.rows; i++){
+                            for(let j=0; j<this.cols; j++){
+                                if(!this.board[i][j]) {
+                                    const move = {r:i, c:j, type: 'TELEPORT'};
+                                    if (this.isMoveSafe(r, c, move) && !this.doesMoveCauseCheckmate(r, c, move)) {
+                                        this.validMoves.push(move);
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        this.skillBtn.classList.remove('bg-purple-800');
+                        this.validMoves = this.getLegalMoves(r, c, piece);
+                    }
+                    this.renderBoard();
+                } else if (piece.type === PIECES.ROOK || piece.type === PIECES.BISHOP) {
+                    this.showExpansionModal(piece.type);
+                }
+            }
+
+            isMoveSafe(r, c, move) {
+                const piece = this.board[r][c];
+                const savedTarget = this.board[move.r][move.c];
+                const savedSource = this.board[r][c];
+                this.board[move.r][move.c] = piece;
+                this.board[r][c] = null;
+                const kingSafe = !this.isKingInCheck(piece.color);
+                this.board[r][c] = savedSource;
+                this.board[move.r][move.c] = savedTarget;
+                return kingSafe;
+            }
+
+            doesMoveCauseCheckmate(r, c, move) {
+                const piece = this.board[r][c];
+                const savedTarget = this.board[move.r][move.c];
+                const savedSource = this.board[r][c];
+                this.board[move.r][move.c] = piece;
+                this.board[r][c] = null;
+                const enemyColor = piece.color === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
+                const isEnemyCheckmated = this.isCheckmate(enemyColor);
+                this.board[r][c] = savedSource;
+                this.board[move.r][move.c] = savedTarget;
+                return isEnemyCheckmated;
+            }
+
+            showExpansionModal(type) {
+                this.gamePaused = true;
+                this.selectionModal.classList.remove('hidden');
+                this.selectionModal.classList.add('flex');
+                this.cardContainer.innerHTML = '';
+                
+                const isRow = type === PIECES.ROOK;
+                document.getElementById('modal-title').innerText = isRow ? "ADD ROW" : "ADD COL";
+                document.getElementById('modal-desc').innerText = "SELECT POSITION";
+                
+                const max = isRow ? this.rows : this.cols;
+                for(let i=0; i <= max; i++) {
+                    const btn = document.createElement('button');
+                    btn.className = "pixel-btn bg-gray-700 text-white p-3 min-w-[50px]";
+                    btn.innerText = `${i}`;
+                    btn.onclick = () => this.applyExpansion(type, i);
+                    this.cardContainer.appendChild(btn);
+                }
+            }
+
+            applyExpansion(type, index) {
+                if (type === PIECES.ROOK) {
+                    const newRow = Array(this.cols).fill(null);
+                    this.board.splice(index, 0, newRow);
+                    this.rows++;
+                } else {
+                    for(let r=0; r<this.rows; r++) this.board[r].splice(index, 0, null);
+                    this.cols++;
+                }
+                this.closeModal();
+                this.selectedSquare = null; 
+                this.validMoves = [];
+                this.renderBoard();
+                this.endTurn();
+            }
+
+            closeModal() {
+                this.selectionModal.classList.add('hidden');
+                this.selectionModal.classList.remove('flex');
+                this.gamePaused = false;
+            }
+
+            executeMove(fromR, fromC, move) {
+                const piece = this.board[fromR][fromC];
+                const target = this.board[move.r][move.c];
+                let captureOccurred = false;
+
+                if (move.type === 'TELEPORT') {
+                    this.board[move.r][move.c] = piece; this.board[fromR][fromC] = null;
+                    piece.teleportUsed = true; this.teleportMode = false;
+                    this.endTurn(); return;
+                }
+                if (move.type === 'REVIVE') {
+                    const deadPawn = this.graveyard.filter(p => p.color === piece.color && p.type === PIECES.PAWN).pop();
+                    const idx = this.graveyard.lastIndexOf(deadPawn);
+                    if(idx > -1) this.graveyard.splice(idx, 1);
+                    this.board[move.r][move.c] = deadPawn; piece.priestUsed = true;
+                    this.endTurn(); return;
+                }
+                if (move.type === 'NEUTRALIZE') {
+                    if (target) { target.race = RACES.NEUTRAL; target.job = null; }
+                    this.endTurn(); return;
+                }
+
+                if (target) {
+                    this.graveyard.push(target);
+                    this.capturedPieces[this.turn === COLORS.WHITE ? 'w' : 'b'].push(target);
+                    captureOccurred = true;
+                }
+                if (piece.job === JOBS.GENERAL && move.cleaveTarget) {
+                    const cleaveEnemy = this.board[move.cleaveTarget.r][move.cleaveTarget.c];
+                    if (cleaveEnemy) {
+                        this.graveyard.push(cleaveEnemy);
+                        this.capturedPieces[this.turn === COLORS.WHITE ? 'w' : 'b'].push(cleaveEnemy);
+                        this.board[move.cleaveTarget.r][move.cleaveTarget.c] = null;
+                        captureOccurred = true;
+                    }
+                }
+
+                this.board[move.r][move.c] = piece;
+                this.board[fromR][fromC] = null;
+                piece.moveCount++;
+
+                if (piece.type === PIECES.KNIGHT && piece.moveCount === 4 && !piece.isDragon) {
+                    piece.isDragon = true;
+                    this.statusElement.innerHTML = `<span class="text-red-500 font-bold">KNIGHT EVOLVED TO DRAGON!</span>`;
+                }
+                if (piece.job === JOBS.ELEMENTALIST && captureOccurred) {
+                    this.board[fromR][fromC] = piece;
+                    const newPawn = this.createPiece(PIECES.PAWN, piece.color);
+                    newPawn.race = RACES.ELF; newPawn.isSpirit = true; newPawn.moveCount = 1;
+                    this.board[move.r][move.c] = newPawn;
+                }
+                if (piece.type === PIECES.PAWN && !piece.job && !piece.isSpirit) {
+                    if ((piece.color === COLORS.WHITE && move.r === 0) || (piece.color === COLORS.BLACK && move.r === this.rows - 1)) {
+                        piece.type = PIECES.QUEEN;
+                    }
+                }
+
+                // Growth System Triggers
+                if (piece.type !== PIECES.KING && !piece.isSpirit && piece.moveCount === 1) {
+                    this.pendingPiecePos = { r: move.r, c: move.c };
+                    this.pendingAction = 'RACE_SELECT';
+                    this.showSelectionModal('RACE');
+                    return;
+                }
+                if (piece.type === PIECES.PAWN && !piece.isSpirit && piece.moveCount === 2 && !piece.job) {
+                    this.pendingPiecePos = { r: move.r, c: move.c };
+                    this.pendingAction = 'JOB_SELECT';
+                    this.showSelectionModal('JOB');
+                    return;
+                }
+
+                if (piece.job === JOBS.BERSERKER && captureOccurred && !this.extraTurnAvailable) {
+                    this.extraTurnAvailable = true;
+                    this.selectedSquare = null; this.validMoves = [];
+                    this.renderBoard();
+                    this.statusElement.innerHTML = `<span class="text-red-500 font-bold">BERSERKER RAGE! MOVE AGAIN!</span>`;
+                    return;
+                }
+                this.extraTurnAvailable = false;
+                this.endTurn();
+            }
+
+            endTurn() {
+                const nextTurn = this.turn === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
+                this.checkState = this.isKingInCheck(nextTurn) ? nextTurn : null;
+                if (this.checkState && this.isCheckmate(nextTurn)) {
+                    this.endGame(this.turn);
+                    return;
+                }
+                this.turn = nextTurn;
+                this.selectedSquare = null;
+                this.validMoves = [];
+                this.skillBtn.classList.add('hidden');
+                this.teleportMode = false;
+                this.updateStatus();
+                this.updateCapturedUI();
+                this.renderBoard();
+            }
+
+            canAttack(attacker, defender) {
+                if (attacker.type === PIECES.KING) return true;
+                if (!attacker.race || !defender.race || defender.race === RACES.NEUTRAL) return true;
+                return RACE_ADVANTAGE[defender.race] !== attacker.race;
+            }
+
+            getLegalMoves(r, c, piece) {
+                const pseudoMoves = this.getPseudoLegalMoves(r, c, piece);
+                return pseudoMoves.filter(move => {
+                    if (['NEUTRALIZE', 'REVIVE', 'TELEPORT'].includes(move.type)) return true;
+                    const savedTarget = this.board[move.r][move.c];
+                    const savedSource = this.board[r][c];
+                    this.board[move.r][move.c] = piece;
+                    this.board[r][c] = null;
+                    const kingSafe = !this.isKingInCheck(piece.color);
+                    this.board[r][c] = savedSource;
+                    this.board[move.r][move.c] = savedTarget;
+                    return kingSafe;
+                });
+            }
+
+            getPseudoLegalMoves(r, c, piece) {
+                const moves = [];
+                const forward = piece.color === COLORS.WHITE ? -1 : 1;
+                const rows = this.rows; const cols = this.cols;
+
+                const addMove = (tr, tc) => {
+                    if (tr >= 0 && tr < rows && tc >= 0 && tc < cols) {
+                        const target = this.board[tr][tc];
+                        if (!target) { moves.push({ r: tr, c: tc }); return false; }
+                        else {
+                            if (target.color !== piece.color && this.canAttack(piece, target)) moves.push({ r: tr, c: tc });
+                            return true; 
+                        }
+                    } return true; 
+                };
+                const slide = (dirs) => {
+                    for (const [dr, dc] of dirs) {
+                        let tr = r + dr, tc = c + dc;
+                        while (tr >= 0 && tr < rows && tc >= 0 && tc < cols) {
+                            if (addMove(tr, tc)) break;
+                            tr += dr; tc += dc;
+                        }
+                    }
+                };
+
+                if (piece.type === PIECES.PAWN) {
+                    if (r + forward >= 0 && r + forward < rows && !this.board[r + forward][c]) {
+                        moves.push({ r: r + forward, c: c });
+                        if (piece.moveCount === 0 && r + forward * 2 >= 0 && r + forward * 2 < rows && !this.board[r + forward * 2][c]) {
+                            moves.push({ r: r + forward * 2, c: c });
+                        }
+                    }
+                    [[forward, -1], [forward, 1]].forEach(([dr, dc]) => {
+                        const tr = r + dr, tc = c + dc;
+                        if (tr>=0 && tr<rows && tc>=0 && tc<cols) {
+                            const target = this.board[tr][tc];
+                            let generalTarget = null;
+                            if (piece.job === JOBS.GENERAL) {
+                                const oppC = c + (dc * -1);
+                                if(oppC>=0 && oppC<cols) {
+                                    const opT = this.board[r+dr][oppC];
+                                    if(opT && opT.color!==piece.color && this.canAttack(piece, opT)) generalTarget = {r:r+dr, c:oppC};
+                                }
+                            }
+                            if (target && target.color !== piece.color) {
+                                if (this.canAttack(piece, target)) {
+                                    const m = { r: tr, c: tc };
+                                    if(generalTarget) m.cleaveTarget = generalTarget;
+                                    moves.push(m);
+                                } else if (piece.job === JOBS.PUNISHER) moves.push({ r: tr, c: tc, type: 'NEUTRALIZE' });
+                            } else if (!target && generalTarget) moves.push({ r: tr, c: tc, cleaveTarget: generalTarget });
+                        }
+                    });
+                    if (piece.job === JOBS.ARCHER) {
+                        const tr = r + forward;
+                        if(tr>=0 && tr<rows) {
+                            const t = this.board[tr][c];
+                            if(t && t.color !== piece.color && this.canAttack(piece, t)) moves.push({r:tr, c});
+                        }
+                    }
+                }
+                else if (piece.type === PIECES.KNIGHT) {
+                    const jumps = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
+                    jumps.forEach(([dr, dc]) => {
+                        addMove(r + dr, c + dc);
+                        if (piece.isDragon) addMove(r + dr + forward, c + dc);
+                    });
+                }
+                else if (piece.type === PIECES.ROOK) slide([[-1, 0], [1, 0], [0, -1], [0, 1]]);
+                else if (piece.type === PIECES.BISHOP) slide([[-1, -1], [-1, 1], [1, -1], [1, 1]]);
+                else if (piece.type === PIECES.QUEEN) slide([[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]]);
+                else if (piece.type === PIECES.KING) {
+                    [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([dr, dc]) => addMove(r + dr, c + dc));
+                }
+                return moves;
+            }
+            addReviveMoves(piece) {
+                const deadPawns = this.graveyard.filter(p => p.color === piece.color && p.type === PIECES.PAWN);
+                if (deadPawns.length > 0) {
+                    const spawnRow = piece.color === COLORS.WHITE ? this.rows - 2 : 1; 
+                    for(let col=0; col<this.cols; col++) {
+                        if (!this.board[spawnRow][col]) this.validMoves.push({ r: spawnRow, c: col, type: 'REVIVE' });
+                    }
+                }
+            }
+            findKing(color) {
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const p = this.board[r][c];
+                        if (p && p.type === PIECES.KING && p.color === color) return { r, c };
+                    }
+                }
+                return null;
+            }
+            isKingInCheck(color) {
+                const kingPos = this.findKing(color);
+                if (!kingPos) return false;
+                const enemyColor = color === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const p = this.board[r][c];
+                        if (p && p.color === enemyColor) {
+                            const moves = this.getPseudoLegalMoves(r, c, p);
+                            if (moves.some(m => m.r === kingPos.r && m.c === kingPos.c)) return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            isCheckmate(color) { return this.isKingInCheck(color) && !this.hasAnyLegalMoves(color); }
+            hasAnyLegalMoves(color) {
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const p = this.board[r][c];
+                        if (p && p.color === color && this.getLegalMoves(r, c, p).length > 0) return true;
+                    }
+                }
+                return false;
+            }
+            updateStatus() {
+                let text = this.turn === COLORS.WHITE ? "WHITE TURN" : "BLACK TURN";
+                if (this.checkState) text += " - <span class='text-red-400 font-bold'>CHECK!</span>";
+                this.statusElement.innerHTML = text;
+            }
+            updateCapturedUI() {
+                const render = (id, list) => {
+                    const el = document.getElementById(id);
+                    el.innerHTML = '';
+                    list.forEach(p => {
+                        el.innerHTML += this.getPieceHTML(p);
+                    });
+                    // Resize captured icons
+                    const tokens = el.querySelectorAll('.token-container');
+                    tokens.forEach(t => { t.style.width = '30px'; t.style.height = '30px'; t.querySelector('.token-icon').style.fontSize = '1rem'; });
+                };
+                render('captured-w', this.capturedPieces.w);
+                render('captured-b', this.capturedPieces.b);
+            }
+            endGame(winner) {
+                this.gameActive = false;
+                const modal = document.getElementById('game-end-modal');
+                document.getElementById('end-title').innerText = winner === 'draw' ? "DRAW" : `${winner === 'w' ? 'WHITE' : 'BLACK'} WINS!`;
+                document.getElementById('end-message').innerText = "GAME OVER";
+                modal.classList.remove('hidden');
+            }
+
+            showSelectionModal(mode) {
+                this.gamePaused = true;
+                this.selectionModal.classList.remove('hidden');
+                this.selectionModal.classList.add('flex');
+                this.cardContainer.innerHTML = '';
+                
+                const piece = this.pendingPiecePos ? this.board[this.pendingPiecePos.r][this.pendingPiecePos.c] : null;
+
+                if (mode === 'RACE') {
+                    this.createCard(RACES.HUMAN, 'HUMAN', 'Defend & Honor', 'fa-user-shield', 'text-blue-400', () => this.handleSelection('RACE', RACES.HUMAN));
+                    this.createCard(RACES.ORC, 'ORC', 'Blood & Glory', 'fa-hand-fist', 'text-red-500', () => this.handleSelection('RACE', RACES.ORC));
+                    this.createCard(RACES.ELF, 'ELF', 'Nature & Swift', 'fa-leaf', 'text-green-400', () => this.handleSelection('RACE', RACES.ELF));
+                } 
+                else if (mode === 'JOB') {
+                    if (piece.race === RACES.ORC) {
+                        this.createCard(JOBS.BERSERKER, 'BERSERKER', 'Kill Again', 'fa-fire', 'text-red-500', () => this.handleSelection('JOB', JOBS.BERSERKER));
+                        this.createCard(JOBS.PUNISHER, 'PUNISHER', 'Neutralize', 'fa-gavel', 'text-orange-500', () => this.handleSelection('JOB', JOBS.PUNISHER));
+                    } else if (piece.race === RACES.ELF) {
+                        this.createCard(JOBS.ARCHER, 'ARCHER', 'Snipe Forward', 'fa-bullseye', 'text-green-400', () => this.handleSelection('JOB', JOBS.ARCHER));
+                        this.createCard(JOBS.ELEMENTALIST, 'SUMMONER', 'Create Spirit', 'fa-wind', 'text-teal-400', () => this.handleSelection('JOB', JOBS.ELEMENTALIST));
+                    } else if (piece.race === RACES.HUMAN) {
+                        this.createCard(JOBS.PRIEST, 'PRIEST', 'Revive ally', 'fa-cross', 'text-blue-300', () => this.handleSelection('JOB', JOBS.PRIEST));
+                        this.createCard(JOBS.GENERAL, 'GENERAL', 'Cleave Attack', 'fa-flag', 'text-indigo-400', () => this.handleSelection('JOB', JOBS.GENERAL));
+                    }
+                }
+            }
+            createCard(value, title, desc, iconClass, colorClass, callback) {
+                const card = document.createElement('div');
+                card.className = `level-up-card p-6 w-36 flex flex-col items-center justify-center cursor-pointer bg-gray-800 border-4 border-white hover:border-yellow-400 transition-all`;
+                card.onclick = callback;
+                card.innerHTML = `
+                    <i class="fas ${iconClass} text-5xl ${colorClass} mb-4 drop-shadow-[2px_2px_0_#000]"></i>
+                    <h3 class="text-xl font-bold text-white mb-2">${title}</h3>
+                    <p class="text-xs text-gray-400 uppercase">${desc}</p>
+                `;
+                this.cardContainer.appendChild(card);
+            }
+            handleSelection(type, value) {
+                const piece = this.board[this.pendingPiecePos.r][this.pendingPiecePos.c];
+                if (type === 'RACE') piece.race = value;
+                else if (type === 'JOB') piece.job = value;
+                this.selectionModal.classList.add('hidden');
+                this.selectionModal.classList.remove('flex');
+                this.gamePaused = false;
+                this.renderBoard();
+                this.endTurn();
+            }
+        }
+
+        const game = new ChessGame();
+        function closeEndModal() {
+            document.getElementById('game-end-modal').classList.add('hidden');
+            game.resetGame();
+        }
+        // 언어 토글 기능
+        function toggleLanguage() {
+            const krDiv = document.getElementById('guide-kr');
+            const enDiv = document.getElementById('guide-en');
+            const btn = document.getElementById('lang-toggle-btn');
+            
+            if (krDiv.classList.contains('hidden')) {
+                // 한글로 전환
+                krDiv.classList.remove('hidden');
+                enDiv.classList.add('hidden');
+                btn.innerText = 'EN'; // 버튼은 '영어로 바꾸기' 의미
+            } else {
+                // 영어로 전환
+                krDiv.classList.add('hidden');
+                enDiv.classList.remove('hidden');
+                btn.innerText = 'KR'; // 버튼은 '한글로 바꾸기' 의미
+            }
+        }
+    </script>
 </body>
 </html>
-
