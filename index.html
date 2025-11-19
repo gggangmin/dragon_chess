@@ -9,6 +9,12 @@
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     
     <style>
+        @font-face {
+            font-family: 'ThinRounded';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2511-1@1.0/ThinDungGeunMo.woff2') format('woff2');
+            font-weight: normal;
+            font-display: swap;
+        }
         /* --- Global Variables & Base --- */
         :root {
             --crt-bg: #120c09;       /* 배경: 아주 어두운 고동색 */
@@ -27,7 +33,7 @@
         }
 
         body {
-            font-family: 'VT323', monospace;
+            font-family: 'VT323', 'ThinRounded', monospace;
             background-color: var(--crt-bg);
             /* 그리드 패턴을 따뜻한 갈색 톤으로 변경 */
             background-image: linear-gradient(0deg, transparent 24%, rgba(161, 136, 127, .1) 25%, rgba(161, 136, 127, .1) 26%, transparent 27%, transparent 74%, rgba(161, 136, 127, .1) 75%, rgba(161, 136, 127, .1) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(161, 136, 127, .1) 25%, rgba(161, 136, 127, .1) 26%, transparent 27%, transparent 74%, rgba(161, 136, 127, .1) 75%, rgba(161, 136, 127, .1) 76%, transparent 77%, transparent);
@@ -198,12 +204,14 @@
             <!-- Header -->
             <div class="pixel-box w-full mb-4 p-4 flex justify-between items-center">
                 <div>
-                    <h1 class="text-4xl font-bold text-yellow-400 italic" style="text-shadow: 3px 3px 0 #000;">DRAGON CHESS</h1>
+                    <!-- 타이틀 ID 추가 -->
+                    <h1 id="game-title" class="text-4xl font-bold text-yellow-400 italic" style="text-shadow: 3px 3px 0 #000;">DRAGON CHESS</h1>
                     <div id="status" class="text-xl mt-1 text-gray-300 tracking-widest">PRESS START</div>
                 </div>
                 <div class="flex gap-3">
+                    <!-- 리셋 버튼 ID는 없어도 되지만 onclick 함수 내에서 텍스트 변경 예정 -->
                     <button id="skill-btn" onclick="game.activateSkill()" class="hidden pixel-btn bg-purple-600 text-white px-4 py-2 animate-pulse">SKILL</button>
-                    <button onclick="game.resetGame()" class="pixel-btn bg-blue-600 text-white px-4 py-2">RESET</button>
+                    <button id="reset-btn" onclick="game.resetGame()" class="pixel-btn bg-blue-600 text-white px-4 py-2">RESET</button>
                 </div>
             </div>
 
@@ -215,11 +223,13 @@
             <!-- Captured -->
             <div class="w-full grid grid-cols-2 gap-4">
                 <div class="pixel-box p-2 min-h-[60px]">
-                    <div class="text-xs text-gray-400 mb-1">GRAVEYARD (BLACK)</div>
+                    <!-- 흑색 묘지 라벨 ID 추가 -->
+                    <div id="label-graveyard-b" class="text-xs text-gray-400 mb-1">GRAVEYARD (BLACK)</div>
                     <div id="captured-w" class="flex flex-wrap gap-2 items-center"></div>
                 </div>
                 <div class="pixel-box p-2 min-h-[60px]">
-                    <div class="text-xs text-gray-400 mb-1">GRAVEYARD (WHITE)</div>
+                    <!-- 백색 묘지 라벨 ID 추가 -->
+                    <div id="label-graveyard-w" class="text-xs text-gray-400 mb-1">GRAVEYARD (WHITE)</div>
                     <div id="captured-b" class="flex flex-wrap gap-2 items-center"></div>
                 </div>
             </div>
@@ -434,7 +444,72 @@
             [JOBS.ARCHER]: 'fa-bullseye', [JOBS.ELEMENTALIST]: 'fa-wind',
             [JOBS.PRIEST]: 'fa-cross', [JOBS.GENERAL]: 'fa-flag'
         };
+        let currentLang = 'KR'; // 기본 언어 설정
 
+        const TEXT = {
+            KR: {
+                TITLE: "드래곤 체스",
+                START: "게임 시작 대기",
+                WHITE_TURN: "백색 차례",
+                BLACK_TURN: "흑색 차례",
+                CHECK: "체크!",
+                CHECKMATE: "체크메이트!",
+                DRAW: "무승부",
+                WIN: "승리!",
+                GAME_OVER: "게임 종료",
+                NEW_GAME: "새 게임",
+                RESET: "재시작",
+                SKILL_EXPAND: "영역 확장",
+                SKILL_TELEPORT: "순간이동",
+                GRAVEYARD_B: "흑색 묘지 (잡은 말)",
+                GRAVEYARD_W: "백색 묘지 (잡은 말)",
+                EVO_KNIGHT: "나이트가 드래곤으로 진화했습니다!",
+                RAGE: "광전사 효과! 추가 이동!",
+                LEVEL_UP: "레벨 업",
+                CHOOSE: "운명을 선택하세요",
+                // 카드 텍스트
+                RACE_HUMAN_DESC: "엘프에게 강함",
+                RACE_ORC_DESC: "인간에게 강함",
+                RACE_ELF_DESC: "오크에게 강함",
+                JOB_BERSERKER_DESC: "처치 시 재행동",
+                JOB_PUNISHER_DESC: "적 무력화",
+                JOB_ARCHER_DESC: "전방 사격",
+                JOB_SUMMONER_DESC: "정령 소환",
+                JOB_PRIEST_DESC: "아군 부활",
+                JOB_GENERAL_DESC: "범위 공격"
+            },
+            EN: {
+                TITLE: "DRAGON CHESS",
+                START: "PRESS START",
+                WHITE_TURN: "WHITE TURN",
+                BLACK_TURN: "BLACK TURN",
+                CHECK: "CHECK!",
+                CHECKMATE: "CHECKMATE!",
+                DRAW: "DRAW",
+                WIN: "WINS!",
+                GAME_OVER: "GAME OVER",
+                NEW_GAME: "NEW GAME",
+                RESET: "RESET",
+                SKILL_EXPAND: "EXPAND",
+                SKILL_TELEPORT: "TELEPORT",
+                GRAVEYARD_B: "GRAVEYARD (BLACK)",
+                GRAVEYARD_W: "GRAVEYARD (WHITE)",
+                EVO_KNIGHT: "KNIGHT EVOLVED TO DRAGON!",
+                RAGE: "BERSERKER RAGE! MOVE AGAIN!",
+                LEVEL_UP: "LEVEL UP",
+                CHOOSE: "CHOOSE YOUR DESTINY",
+                // Card Texts
+                RACE_HUMAN_DESC: "Strong vs ELF",
+                RACE_ORC_DESC: "Strong vs HUMAN",
+                RACE_ELF_DESC: "Strong vs ORC",
+                JOB_BERSERKER_DESC: "Kill -> Move Again",
+                JOB_PUNISHER_DESC: "Neutralize",
+                JOB_ARCHER_DESC: "Attack Forward",
+                JOB_SUMMONER_DESC: "Summon Spirit",
+                JOB_PRIEST_DESC: "Revive Ally",
+                JOB_GENERAL_DESC: "Cleave Attack"
+            }
+        };
         class ChessGame {
             constructor() {
                 this.boardElement = document.getElementById('board');
@@ -590,8 +665,9 @@
                 if (piece.type === PIECES.QUEEN && !piece.teleportUsed) showBtn = true;
                 
                 if (showBtn) {
+                    const t = TEXT[currentLang];
                     this.skillBtn.classList.remove('hidden');
-                    this.skillBtn.innerText = piece.type === PIECES.QUEEN ? "TELEPORT" : "EXPAND";
+                    this.skillBtn.innerText = piece.type === PIECES.QUEEN ? t.SKILL_TELEPORT : t.SKILL_EXPAND;
                 } else {
                     this.skillBtn.classList.add('hidden');
                 }
@@ -737,7 +813,7 @@
 
                 if (piece.type === PIECES.KNIGHT && piece.moveCount === 4 && !piece.isDragon) {
                     piece.isDragon = true;
-                    this.statusElement.innerHTML = `<span class="text-red-500 font-bold">KNIGHT EVOLVED TO DRAGON!</span>`;
+                    this.statusElement.innerHTML = `<span class="text-red-500 font-bold">${TEXT[currentLang].EVO_KNIGHT}</span>`;
                 }
                 if (piece.job === JOBS.ELEMENTALIST && captureOccurred) {
                     this.board[fromR][fromC] = piece;
@@ -769,7 +845,7 @@
                     this.extraTurnAvailable = true;
                     this.selectedSquare = null; this.validMoves = [];
                     this.renderBoard();
-                    this.statusElement.innerHTML = `<span class="text-red-500 font-bold">BERSERKER RAGE! MOVE AGAIN!</span>`;
+                    this.statusElement.innerHTML = `<span class="text-red-500 font-bold">${TEXT[currentLang].RAGE}</span>`;
                     return;
                 }
                 this.extraTurnAvailable = false;
@@ -934,8 +1010,14 @@
                 return false;
             }
             updateStatus() {
-                let text = this.turn === COLORS.WHITE ? "WHITE TURN" : "BLACK TURN";
-                if (this.checkState) text += " - <span class='text-red-400 font-bold'>CHECK!</span>";
+                const t = TEXT[currentLang];
+                let text = this.turn === COLORS.WHITE ? t.WHITE_TURN : t.BLACK_TURN;
+                
+                if (!this.gameActive && this.board) { // 게임 시작 전 등 예외 처리
+                     if(this.moveCount === 0) text = t.START;
+                }
+
+                if (this.checkState) text += ` - <span class='text-red-400 font-bold'>${t.CHECK}</span>`;
                 this.statusElement.innerHTML = text;
             }
             updateCapturedUI() {
@@ -955,8 +1037,20 @@
             endGame(winner) {
                 this.gameActive = false;
                 const modal = document.getElementById('game-end-modal');
-                document.getElementById('end-title').innerText = winner === 'draw' ? "DRAW" : `${winner === 'w' ? 'WHITE' : 'BLACK'} WINS!`;
-                document.getElementById('end-message').innerText = "GAME OVER";
+                const t = TEXT[currentLang];
+                
+                // 타이틀
+                document.getElementById('end-title').innerText = t.GAME_OVER;
+                
+                // 메시지
+                let msg = "";
+                if (winner === 'draw') msg = t.DRAW;
+                else msg = `${winner === 'w' ? 'WHITE' : 'BLACK'} ${t.WIN}`;
+                
+                document.getElementById('end-message').innerText = msg;
+                
+                // 버튼
+                modal.querySelector('button').innerText = t.NEW_GAME;
                 modal.classList.remove('hidden');
             }
 
@@ -967,22 +1061,26 @@
                 this.cardContainer.innerHTML = '';
                 
                 const piece = this.pendingPiecePos ? this.board[this.pendingPiecePos.r][this.pendingPiecePos.c] : null;
+                const t = TEXT[currentLang]; // 텍스트 가져오기
+
+                document.getElementById('modal-title').innerText = t.LEVEL_UP;
+                document.getElementById('modal-desc').innerText = t.CHOOSE;
 
                 if (mode === 'RACE') {
-                    this.createCard(RACES.HUMAN, 'HUMAN', 'Defend & Honor', 'fa-user-shield', 'text-blue-400', () => this.handleSelection('RACE', RACES.HUMAN));
-                    this.createCard(RACES.ORC, 'ORC', 'Blood & Glory', 'fa-hand-fist', 'text-red-500', () => this.handleSelection('RACE', RACES.ORC));
-                    this.createCard(RACES.ELF, 'ELF', 'Nature & Swift', 'fa-leaf', 'text-green-400', () => this.handleSelection('RACE', RACES.ELF));
+                    this.createCard(RACES.HUMAN, 'HUMAN', t.RACE_HUMAN_DESC, 'fa-user-shield', 'text-blue-400', () => this.handleSelection('RACE', RACES.HUMAN));
+                    this.createCard(RACES.ORC, 'ORC', t.RACE_ORC_DESC, 'fa-hand-fist', 'text-red-500', () => this.handleSelection('RACE', RACES.ORC));
+                    this.createCard(RACES.ELF, 'ELF', t.RACE_ELF_DESC, 'fa-leaf', 'text-green-400', () => this.handleSelection('RACE', RACES.ELF));
                 } 
                 else if (mode === 'JOB') {
                     if (piece.race === RACES.ORC) {
-                        this.createCard(JOBS.BERSERKER, 'BERSERKER', 'Kill Again', 'fa-fire', 'text-red-500', () => this.handleSelection('JOB', JOBS.BERSERKER));
-                        this.createCard(JOBS.PUNISHER, 'PUNISHER', 'Neutralize', 'fa-gavel', 'text-orange-500', () => this.handleSelection('JOB', JOBS.PUNISHER));
+                        this.createCard(JOBS.BERSERKER, 'BERSERKER', t.JOB_BERSERKER_DESC, 'fa-fire', 'text-red-500', () => this.handleSelection('JOB', JOBS.BERSERKER));
+                        this.createCard(JOBS.PUNISHER, 'PUNISHER', t.JOB_PUNISHER_DESC, 'fa-gavel', 'text-orange-500', () => this.handleSelection('JOB', JOBS.PUNISHER));
                     } else if (piece.race === RACES.ELF) {
-                        this.createCard(JOBS.ARCHER, 'ARCHER', 'Snipe Forward', 'fa-bullseye', 'text-green-400', () => this.handleSelection('JOB', JOBS.ARCHER));
-                        this.createCard(JOBS.ELEMENTALIST, 'SUMMONER', 'Create Spirit', 'fa-wind', 'text-teal-400', () => this.handleSelection('JOB', JOBS.ELEMENTALIST));
+                        this.createCard(JOBS.ARCHER, 'ARCHER', t.JOB_ARCHER_DESC, 'fa-bullseye', 'text-green-400', () => this.handleSelection('JOB', JOBS.ARCHER));
+                        this.createCard(JOBS.ELEMENTALIST, 'SUMMONER', t.JOB_SUMMONER_DESC, 'fa-wind', 'text-teal-400', () => this.handleSelection('JOB', JOBS.ELEMENTALIST));
                     } else if (piece.race === RACES.HUMAN) {
-                        this.createCard(JOBS.PRIEST, 'PRIEST', 'Revive ally', 'fa-cross', 'text-blue-300', () => this.handleSelection('JOB', JOBS.PRIEST));
-                        this.createCard(JOBS.GENERAL, 'GENERAL', 'Cleave Attack', 'fa-flag', 'text-indigo-400', () => this.handleSelection('JOB', JOBS.GENERAL));
+                        this.createCard(JOBS.PRIEST, 'PRIEST', t.JOB_PRIEST_DESC, 'fa-cross', 'text-blue-300', () => this.handleSelection('JOB', JOBS.PRIEST));
+                        this.createCard(JOBS.GENERAL, 'GENERAL', t.JOB_GENERAL_DESC, 'fa-flag', 'text-indigo-400', () => this.handleSelection('JOB', JOBS.GENERAL));
                     }
                 }
             }
@@ -1020,19 +1118,38 @@
             const enDiv = document.getElementById('guide-en');
             const btn = document.getElementById('lang-toggle-btn');
             
-            if (krDiv.classList.contains('hidden')) {
-                // 한글로 전환
-                krDiv.classList.remove('hidden');
-                enDiv.classList.add('hidden');
-                btn.innerText = 'EN'; // 버튼은 '영어로 바꾸기' 의미
-            } else {
-                // 영어로 전환
+            // 언어 상태 변경
+            if (currentLang === 'KR') {
+                currentLang = 'EN';
                 krDiv.classList.add('hidden');
                 enDiv.classList.remove('hidden');
-                btn.innerText = 'KR'; // 버튼은 '한글로 바꾸기' 의미
+                btn.innerText = 'KR'; 
+            } else {
+                currentLang = 'KR';
+                krDiv.classList.remove('hidden');
+                enDiv.classList.add('hidden');
+                btn.innerText = 'EN';
+            }
+
+            // UI 텍스트 갱신
+            const t = TEXT[currentLang];
+            document.getElementById('game-title').innerText = t.TITLE;
+            document.getElementById('reset-btn').innerText = t.RESET;
+            document.getElementById('label-graveyard-b').innerText = t.GRAVEYARD_B;
+            document.getElementById('label-graveyard-w').innerText = t.GRAVEYARD_W;
+
+            // 게임 상태 메시지도 즉시 갱신
+            game.updateStatus();
+            
+            // 스킬 버튼 텍스트 갱신 (만약 활성화 상태라면)
+            if (!game.skillBtn.classList.contains('hidden')) {
+                // 현재 선택된 기물 정보를 알 수 없으므로 단순 갱신은 어렵지만, 
+                // 턴 진행 중 다시 클릭하면 갱신되도록 둠. 
+                // 완벽을 위해선 game.checkSkillAvailability 호출 필요하지만 생략 가능.
             }
         }
     </script>
 </body>
 </html>
+
 
