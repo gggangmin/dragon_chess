@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>드래곤 체스 (Dragon Chess)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* 체스판 및 기본 스타일 */
+        .square-light { background-color: #eeeed2; }
+        .square-dark { background-color: #769656; }
+        .square-selected { background-color: #bbc67f !important; }
+        .square-check { background: radial-gradient(circle, #ff4d4d 50%, transparent 80%) !important; }
+        
+        /* 특수 액션 표시 */
+        .square-valid::after {
+            content: ''; position: absolute; width: 20%; height: 20%;
+            background-color: rgba(0, 0, 0, 0.2); border-radius: 50%;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+        .square-capture::after {
+            content: ''; position: absolute; width: 80%; height: 80%;
+            border: 4px solid rgba(0, 0, 0, 0.2); border-radius: 50%;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+        .square-skill::after {
+            content: ''; position: absolute; width: 80%; height: 80%;
+            border: 4px dashed rgba(147, 51, 234, 0.7);
+            border-radius: 50%;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+        .square-revive { background-color: #a7f3d0 !important; cursor: copy !important; }
+        .square-teleport { background-color: #e9d5ff !important; cursor: alias !important; }
+
+        /* 기물 스타일 */
+        .piece {
+            cursor: pointer;
+            font-size: 2.0rem;
+            filter: drop-shadow(2px 4px 2px rgba(0,0,0,0.3));
+            transition: transform 0.2s;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+        }
+        .piece:hover { transform: scale(1.1); }
+        .piece-w { color: #f8f9fa; text-shadow: 0 0 2px #000; }
+        .piece-b { color: #1a1a1a; text-shadow: 0 0 1px #fff; }
+
+        /* 드래곤 진화 효과 */
+        .dragon-piece {
+            font-size: 2.4rem;
+            filter: drop-shadow(0 0 5px #ef4444);
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* 정령(소환수) 스타일 */
+        .spirit-aura { animation: pulse-spirit 2s infinite; }
+        .spirit-aura i {
+            color: #a5f3fc !important;
+            text-shadow: 0 0 5px #22d3ee, 0 0 10px #0891b2 !important;
+        }
+        @keyframes pulse-spirit {
+            0% { filter: drop-shadow(0 0 2px #67e8f9); transform: scale(1); }
+            50% { filter: drop-shadow(0 0 6px #22d3ee); transform: scale(1.05); }
+            100% { filter: drop-shadow(0 0 2px #67e8f9); transform: scale(1); }
+        }
+
+        /* 뱃지 */
+        .badge-container {
+            position: absolute; top: 0; right: 0;
+            display: flex; flex-direction: column; gap: 1px; align-items: flex-end;
+        }
+        .mini-badge {
+            font-size: 0.5rem; width: 12px; height: 12px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            background-color: rgba(0,0,0,0.8); color: #fff;
+            border: 1px solid rgba(255,255,255,0.5); z-index: 10;
+        }
+        .spirit-badge { border-color: #67e8f9 !important; color: #67e8f9 !important; box-shadow: 0 0 4px #22d3ee; }
+
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* 모달 효과 */
+        .level-up-card { transition: all 0.3s; cursor: pointer; }
+        .level-up-card:hover {
+            transform: scale(1.05) translateY(-5px);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.6); border-color: #ffd700;
+        }
+        .shine-effect { animation: shine 2s infinite; }
+        @keyframes shine {
+            0% { filter: brightness(1); }
+            50% { filter: brightness(1.5); text-shadow: 0 0 10px gold; }
+            100% { filter: brightness(1); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 min-h-screen flex items-center justify-center p-4 font-sans text-white">
+
+    <!-- 메인 레이아웃 -->
+    <div class="flex flex-col lg:flex-row gap-6 w-full max-w-7xl items-start justify-center">
+        
+        <!-- 왼쪽: 게임 영역 -->
+        <div class="flex flex-col items-center w-full max-w-[600px] shrink-0">
+            
+            <!-- 헤더 -->
+            <div class="w-full mb-2 flex justify-between items-center bg-slate-800 p-3 rounded-lg shadow-lg border border-slate-600">
+                <div>
+                    <h1 class="text-xl font-bold text-yellow-400"><i class="fas fa-dragon"></i> 드래곤 체스</h1>
+                    <div id="status" class="text-sm mt-1 font-semibold text-gray-300">게임 시작 대기</div>
+                </div>
+                <div class="flex gap-2">
+                    <!-- 스킬 버튼 -->
+                    <button id="skill-btn" onclick="game.activateSkill()" class="hidden bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-xs transition shadow border border-purple-400 animate-pulse font-bold">
+                        <i class="fas fa-wand-magic-sparkles mr-1"></i> 기술 사용
+                    </button>
+                    <button onclick="game.resetGame()" class="bg-blue-700 hover:bg-blue-600 text-white px-3 py-2 rounded text-xs transition shadow border border-blue-500">
+                        <i class="fas fa-rotate-right mr-1"></i> 재시작
+                    </button>
+                </div>
+            </div>
+
+            <!-- 상성 가이드 -->
+            <div class="w-full mb-2 flex justify-center gap-3 text-[10px] md:text-xs text-gray-400 bg-slate-800 p-1 rounded border border-slate-700">
+                <span class="flex items-center"><i class="fas fa-user-shield text-blue-400 mr-1"></i>인간 > 엘프</span>
+                <span class="flex items-center"><i class="fas fa-leaf text-green-400 mr-1"></i>엘프 > 오크</span>
+                <span class="flex items-center"><i class="fas fa-hand-fist text-red-400 mr-1"></i>오크 > 인간</span>
+                <span class="flex items-center ml-2 text-yellow-500"><i class="fas fa-crown mr-1"></i>킹 무상성</span>
+            </div>
+
+            <!-- 게임 보드 컨테이너 -->
+            <div class="w-full overflow-auto p-1 bg-slate-800 rounded-lg border border-slate-600 mb-2">
+                <div id="board" class="grid gap-0 mx-auto border-4 border-slate-600 shadow-2xl select-none bg-slate-300 relative transition-all duration-300">
+                    <!-- JS Generated -->
+                </div>
+            </div>
+
+            <!-- 잡은 말 UI -->
+            <div class="w-full grid grid-cols-2 gap-4">
+                <div class="bg-slate-800 p-2 rounded border border-slate-700 min-h-[50px]">
+                    <div class="text-[10px] text-gray-400 mb-1">흑색의 포로</div>
+                    <div id="captured-w" class="flex flex-wrap gap-1 items-center"></div>
+                </div>
+                <div class="bg-slate-800 p-2 rounded border border-slate-700 min-h-[50px]">
+                    <div class="text-[10px] text-gray-400 mb-1">백색의 포로</div>
+                    <div id="captured-b" class="flex flex-wrap gap-1 items-center"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 오른쪽: 규칙 설명 패널 (상세) -->
+        <div class="w-full lg:w-96 bg-slate-800 p-5 rounded-lg border border-slate-600 shadow-xl text-sm h-fit max-h-[800px] overflow-y-auto">
+            <h2 class="text-lg font-bold text-yellow-400 mb-4 border-b border-slate-600 pb-2 flex items-center">
+                <i class="fas fa-book-open mr-2"></i> 드래곤 체스 가이드
+            </h2>
+            <div class="space-y-5 text-gray-300 leading-relaxed">
+                
+                <!-- 1. 성장 시스템 -->
+                <div>
+                    <h3 class="font-bold text-white mb-2 text-xs uppercase tracking-wider bg-slate-700 p-1.5 rounded border-l-4 border-blue-500">
+                        1. 폰 성장 시스템 (1회 한정)
+                    </h3>
+                    <ul class="list-disc pl-4 space-y-1 text-xs">
+                        <li><strong>1회 이동 시:</strong> 종족 선택 (인간/엘프/오크)</li>
+                        <li><strong>2회 이동 시:</strong> 직업 선택 (종족별 2종 중 택1)</li>
+                        <li class="text-gray-500">* 정령(소환수)은 성장 불가</li>
+                    </ul>
+                </div>
+
+                <!-- 2. 종족 상성 -->
+                <div>
+                    <h3 class="font-bold text-white mb-2 text-xs uppercase tracking-wider bg-slate-700 p-1.5 rounded border-l-4 border-red-500">
+                        2. 종족 상성 (가위바위보)
+                    </h3>
+                    <div class="grid grid-cols-1 gap-1 text-xs bg-slate-900/50 p-2 rounded border border-slate-700">
+                        <div class="flex justify-between items-center border-b border-slate-700 pb-1">
+                            <span class="text-blue-400 font-bold"><i class="fas fa-user-shield"></i> 인간</span>
+                            <span class="text-gray-500 text-[10px]">공격가능 &rarr;</span>
+                            <span class="text-green-400 font-bold">엘프 <i class="fas fa-leaf"></i></span>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-slate-700 py-1">
+                            <span class="text-green-400 font-bold"><i class="fas fa-leaf"></i> 엘프</span>
+                            <span class="text-gray-500 text-[10px]">공격가능 &rarr;</span>
+                            <span class="text-red-400 font-bold">오크 <i class="fas fa-hand-fist"></i></span>
+                        </div>
+                        <div class="flex justify-between items-center pt-1">
+                            <span class="text-red-400 font-bold"><i class="fas fa-hand-fist"></i> 오크</span>
+                            <span class="text-gray-500 text-[10px]">공격가능 &rarr;</span>
+                            <span class="text-blue-400 font-bold">인간 <i class="fas fa-user-shield"></i></span>
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-yellow-500 mt-1">* 킹은 종족 상관없이 모든 기물 공격 가능</p>
+                    <p class="text-[10px] text-gray-400">* 약한 상성 적은 공격 불가 (길막힘 판정)</p>
+                </div>
+
+                <!-- 3. 직업별 특수 능력 -->
+                <div>
+                    <h3 class="font-bold text-white mb-2 text-xs uppercase tracking-wider bg-slate-700 p-1.5 rounded border-l-4 border-green-500">
+                        3. 직업 특수 능력
+                    </h3>
+                    <div class="space-y-2 text-xs">
+                        <div class="bg-slate-900/30 p-2 rounded">
+                            <strong class="text-red-400 block mb-1">오크 (Orc)</strong>
+                            <p class="pl-2 border-l-2 border-red-400/30"><i class="fas fa-fire"></i> <strong>광전사:</strong> 적 처치 시, 그 턴에 1회 추가 이동 가능</p>
+                            <p class="pl-2 border-l-2 border-red-400/30 mt-1"><i class="fas fa-gavel"></i> <strong>징벌자:</strong> 상성상 공격 못하는 적을 공격 시, 적을 '중립' 상태로 만듦 (제거X, 무력화)</p>
+                        </div>
+                        <div class="bg-slate-900/30 p-2 rounded">
+                            <strong class="text-green-400 block mb-1">엘프 (Elf)</strong>
+                            <p class="pl-2 border-l-2 border-green-400/30"><i class="fas fa-bullseye"></i> <strong>사수:</strong> 대각선 뿐만 아니라 바로 앞의 적도 공격 가능</p>
+                            <p class="pl-2 border-l-2 border-green-400/30 mt-1"><i class="fas fa-wind"></i> <strong>정령술사:</strong> 적 처치 시, 제자리에 아군 '정령(폰)' 소환 후 이동</p>
+                        </div>
+                        <div class="bg-slate-900/30 p-2 rounded">
+                            <strong class="text-blue-400 block mb-1">인간 (Human)</strong>
+                            <p class="pl-2 border-l-2 border-blue-400/30"><i class="fas fa-cross"></i> <strong>사제:</strong> 행동 소모하여 죽은 아군 폰 1기 부활 (게임 중 1회)</p>
+                            <p class="pl-2 border-l-2 border-blue-400/30 mt-1"><i class="fas fa-chess-board"></i> <strong>장수:</strong> 이동 시 진행 방향 좌우 대각선의 적도 함께 처치 (빗겨치기)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. 특수 기물 -->
+                <div>
+                    <h3 class="font-bold text-white mb-2 text-xs uppercase tracking-wider bg-slate-700 p-1.5 rounded border-l-4 border-purple-500">
+                        4. 상급 기물 각성
+                    </h3>
+                    <ul class="list-none space-y-2 text-xs">
+                        <li class="bg-slate-900/30 p-2 rounded relative overflow-hidden">
+                            <div class="flex justify-between items-center mb-1">
+                                <strong class="text-purple-300"><i class="fas fa-chess-rook"></i> 룩 & <i class="fas fa-chess-bishop"></i> 비숍</strong>
+                                <span class="text-[10px] bg-purple-900 text-purple-200 px-1 rounded">2회 이동 후</span>
+                            </div>
+                            <p>전용 기술 사용 가능. 보드에 행(가로줄) 또는 열(세로줄)을 영구적으로 추가하여 전장을 확장.</p>
+                        </li>
+                        <li class="bg-slate-900/30 p-2 rounded relative overflow-hidden">
+                            <div class="flex justify-between items-center mb-1">
+                                <strong class="text-pink-300"><i class="fas fa-chess-queen"></i> 퀸</strong>
+                                <span class="text-[10px] bg-pink-900 text-pink-200 px-1 rounded">1회 한정</span>
+                            </div>
+                            <p><strong>순간이동:</strong> 보드의 빈 곳으로 즉시 이동. (단, 체크메이트를 유발하는 위치나 자신의 킹이 위험한 위치로는 이동 불가)</p>
+                        </li>
+                        <li class="bg-slate-900/30 p-2 rounded relative overflow-hidden">
+                            <div class="flex justify-between items-center mb-1">
+                                <strong class="text-red-500"><i class="fas fa-dragon"></i> 나이트 &rarr; 드래곤</strong>
+                                <span class="text-[10px] bg-red-900 text-red-200 px-1 rounded">4회 이동 시</span>
+                            </div>
+                            <p>자동으로 드래곤으로 진화. 기존 이동 범위 + <span class="text-yellow-300">전방으로 한 칸 더 도약</span>하는 범위 추가.</p>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 모달 -->
+    <div id="selection-modal" class="hidden fixed inset-0 bg-black/90 flex flex-col items-center justify-center z-50 backdrop-blur-sm px-4">
+        <h2 id="modal-title" class="text-3xl font-bold text-yellow-400 mb-2 tracking-wider shine-effect drop-shadow-lg text-center">MENU</h2>
+        <p id="modal-desc" class="text-gray-300 mb-6 text-sm text-center">선택하세요</p>
+        
+        <div id="card-container" class="flex flex-wrap gap-3 w-full max-w-3xl justify-center items-center overflow-y-auto max-h-[70vh] p-2"></div>
+        <button onclick="game.closeModal()" id="close-modal-btn" class="mt-4 text-gray-400 text-xs underline hidden">닫기</button>
+    </div>
+
+    <!-- 게임 종료 모달 -->
+    <div id="game-end-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div class="bg-slate-800 text-white p-8 rounded-lg shadow-2xl border border-yellow-500 text-center max-w-xs">
+            <h2 id="end-title" class="text-2xl font-bold mb-4 text-yellow-400">게임 종료</h2>
+            <p id="end-message" class="text-base mb-6 text-gray-300">내용</p>
+            <button onclick="closeEndModal()" class="bg-green-600 text-white px-6 py-2 rounded-full font-bold hover:bg-green-500 transition shadow-lg">
+                새 게임 시작
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const COLORS = { WHITE: 'w', BLACK: 'b' };
+        const PIECES = { PAWN: 'p', ROOK: 'r', KNIGHT: 'n', BISHOP: 'b', QUEEN: 'q', KING: 'k' };
+        const RACES = { HUMAN: 'HUMAN', ORC: 'ORC', ELF: 'ELF', NEUTRAL: 'NEUTRAL' };
+        const JOBS = {
+            BERSERKER: 'BERSERKER', PUNISHER: 'PUNISHER',
+            ARCHER: 'ARCHER', ELEMENTALIST: 'ELEMENTALIST',
+            PRIEST: 'PRIEST', GENERAL: 'GENERAL'
+        };
+        
+        const RACE_ADVANTAGE = {
+            [RACES.HUMAN]: RACES.ELF, [RACES.ELF]: RACES.ORC, [RACES.ORC]: RACES.HUMAN
+        };
+
+        const PIECE_ICONS = {
+            [PIECES.PAWN]: 'fa-chess-pawn', [PIECES.ROOK]: 'fa-chess-rook',
+            [PIECES.KNIGHT]: 'fa-chess-knight', [PIECES.BISHOP]: 'fa-chess-bishop',
+            [PIECES.QUEEN]: 'fa-chess-queen', [PIECES.KING]: 'fa-chess-king'
+        };
+        const RACE_ICONS = {
+            [RACES.HUMAN]: 'fa-user-shield', [RACES.ORC]: 'fa-hand-fist', 
+            [RACES.ELF]: 'fa-leaf', [RACES.NEUTRAL]: 'fa-circle-dot'
+        };
+        const RACE_COLORS = {
+            [RACES.HUMAN]: 'text-blue-400', [RACES.ORC]: 'text-red-400', 
+            [RACES.ELF]: 'text-green-400', [RACES.NEUTRAL]: 'text-gray-400'
+        };
+        const JOB_ICONS = {
+            [JOBS.BERSERKER]: 'fa-fire', [JOBS.PUNISHER]: 'fa-gavel',
+            [JOBS.ARCHER]: 'fa-bullseye', [JOBS.ELEMENTALIST]: 'fa-wind',
+            [JOBS.PRIEST]: 'fa-cross', [JOBS.GENERAL]: 'fa-chess-board'
+        };
+
+        class ChessGame {
+            constructor() {
+                this.boardElement = document.getElementById('board');
+                this.statusElement = document.getElementById('status');
+                this.selectionModal = document.getElementById('selection-modal');
+                this.cardContainer = document.getElementById('card-container');
+                this.skillBtn = document.getElementById('skill-btn');
+                this.resetGame();
+            }
+
+            resetGame() {
+                this.rows = 8;
+                this.cols = 8;
+                this.turn = COLORS.WHITE;
+                this.board = this.createInitialBoard();
+                this.selectedSquare = null;
+                this.validMoves = [];
+                this.capturedPieces = { w: [], b: [] };
+                this.graveyard = [];
+                this.gameActive = true;
+                this.gamePaused = false;
+                this.pendingPiecePos = null; 
+                this.pendingAction = null;
+                this.checkState = null;
+                this.extraTurnAvailable = false;
+                this.teleportMode = false; 
+
+                this.renderBoard();
+                this.updateStatus();
+                this.updateCapturedUI();
+                this.skillBtn.classList.add('hidden');
+            }
+
+            createInitialBoard() {
+                const board = Array(8).fill(null).map(() => Array(8).fill(null));
+                const setupRow = (row, color, types) => {
+                    types.forEach((type, col) => {
+                        board[row][col] = this.createPiece(type, color);
+                    });
+                };
+                const backRow = [PIECES.ROOK, PIECES.KNIGHT, PIECES.BISHOP, PIECES.QUEEN, PIECES.KING, PIECES.BISHOP, PIECES.KNIGHT, PIECES.ROOK];
+                const pawnRow = Array(8).fill(PIECES.PAWN);
+
+                setupRow(0, COLORS.BLACK, backRow);
+                setupRow(1, COLORS.BLACK, pawnRow);
+                setupRow(6, COLORS.WHITE, pawnRow);
+                setupRow(7, COLORS.WHITE, backRow);
+                return board;
+            }
+
+            createPiece(type, color) {
+                return {
+                    type, color,
+                    race: null, job: null,
+                    moveCount: 0,
+                    isSpirit: false,
+                    priestUsed: false,
+                    isDragon: false,
+                    teleportUsed: false,
+                };
+            }
+
+            renderBoard() {
+                this.boardElement.innerHTML = '';
+                this.boardElement.style.gridTemplateColumns = `repeat(${this.cols}, minmax(40px, 1fr))`;
+                
+                let kingInCheckPos = this.checkState ? this.findKing(this.checkState) : null;
+
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const square = document.createElement('div');
+                        const isDark = (r + c) % 2 === 1;
+                        square.className = `flex items-center justify-center relative aspect-square ${isDark ? 'square-dark' : 'square-light'}`;
+
+                        if (this.selectedSquare && this.selectedSquare.r === r && this.selectedSquare.c === c) {
+                            square.classList.add('square-selected');
+                        }
+                        if (kingInCheckPos && kingInCheckPos.r === r && kingInCheckPos.c === c) {
+                            square.classList.add('square-check');
+                        }
+
+                        const move = this.validMoves.find(m => m.r === r && m.c === c);
+                        if (move) {
+                            if (move.type === 'NEUTRALIZE' || move.type === 'REVIVE') {
+                                square.classList.add('square-skill');
+                                if (move.type === 'REVIVE') square.classList.add('square-revive');
+                            } else if (move.type === 'TELEPORT') {
+                                square.classList.add('square-teleport');
+                            } else if (this.board[r][c] || move.isEnPassant || (move.cleaveTarget)) {
+                                square.classList.add('square-capture');
+                            } else {
+                                square.classList.add('square-valid');
+                            }
+                        }
+
+                        const piece = this.board[r][c];
+                        if (piece) {
+                            const pieceContainer = document.createElement('div');
+                            pieceContainer.className = `piece ${piece.isDragon ? 'dragon-piece' : ''} ${piece.isSpirit ? 'spirit-aura' : ''}`;
+                            
+                            let iconClass = PIECE_ICONS[piece.type];
+                            if (piece.isDragon) iconClass = 'fa-dragon';
+
+                            const i = document.createElement('i');
+                            i.className = `fas ${iconClass} ${piece.color === 'w' ? 'piece-w' : 'piece-b'}`;
+                            pieceContainer.appendChild(i);
+
+                            const badges = document.createElement('div');
+                            badges.className = 'badge-container';
+                            if (piece.race) {
+                                const rBadge = document.createElement('div');
+                                rBadge.className = `mini-badge ${piece.isSpirit ? 'spirit-badge' : ''}`;
+                                rBadge.innerHTML = `<i class="fas ${piece.isSpirit ? 'fa-ghost' : RACE_ICONS[piece.race]} ${piece.isSpirit ? '' : RACE_COLORS[piece.race]}"></i>`;
+                                badges.appendChild(rBadge);
+                            }
+                            if (piece.job) {
+                                const jBadge = document.createElement('div');
+                                jBadge.className = 'mini-badge';
+                                jBadge.style.borderColor = "#ffd700";
+                                jBadge.innerHTML = `<i class="fas ${JOB_ICONS[piece.job]} text-yellow-300"></i>`;
+                                badges.appendChild(jBadge);
+                            }
+                            pieceContainer.appendChild(badges);
+                            square.appendChild(pieceContainer);
+                        }
+
+                        square.onclick = () => this.handleSquareClick(r, c);
+                        this.boardElement.appendChild(square);
+                    }
+                }
+            }
+
+            handleSquareClick(r, c) {
+                if (!this.gameActive || this.gamePaused) return;
+
+                const move = this.validMoves.find(m => m.r === r && m.c === c);
+                if (this.selectedSquare && move) {
+                    this.executeMove(this.selectedSquare.r, this.selectedSquare.c, move);
+                    return;
+                }
+
+                const piece = this.board[r][c];
+                if (piece && piece.color === this.turn) {
+                    this.selectedSquare = { r, c };
+                    this.teleportMode = false; 
+                    
+                    this.checkSkillAvailability(piece);
+                    
+                    this.validMoves = this.getLegalMoves(r, c, piece);
+                    if (piece.job === JOBS.PRIEST && !piece.priestUsed) {
+                        this.addReviveMoves(piece);
+                    }
+
+                    this.renderBoard();
+                    return;
+                }
+
+                this.selectedSquare = null;
+                this.validMoves = [];
+                this.skillBtn.classList.add('hidden');
+                this.teleportMode = false;
+                this.renderBoard();
+            }
+
+            checkSkillAvailability(piece) {
+                let showBtn = false;
+                if ((piece.type === PIECES.ROOK || piece.type === PIECES.BISHOP) && piece.moveCount >= 2) showBtn = true;
+                if (piece.type === PIECES.QUEEN && !piece.teleportUsed) showBtn = true;
+                
+                if (showBtn) {
+                    this.skillBtn.classList.remove('hidden');
+                    this.skillBtn.innerText = piece.type === PIECES.QUEEN ? "순간이동" : "영역 확장";
+                } else {
+                    this.skillBtn.classList.add('hidden');
+                }
+            }
+
+            activateSkill() {
+                if (!this.selectedSquare) return;
+                const { r, c } = this.selectedSquare;
+                const piece = this.board[r][c];
+
+                if (piece.type === PIECES.QUEEN) {
+                    this.teleportMode = !this.teleportMode;
+                    if (this.teleportMode) {
+                        this.skillBtn.classList.add('bg-purple-800');
+                        this.validMoves = [];
+                        // 순간이동 후보 생성 및 필터링
+                        for(let i=0; i<this.rows; i++){
+                            for(let j=0; j<this.cols; j++){
+                                if(!this.board[i][j]) {
+                                    // 조건 1. 체크메이트 금지
+                                    // 조건 2. 자기 왕 체크 금지
+                                    const move = {r:i, c:j, type: 'TELEPORT'};
+                                    if (this.isMoveSafe(r, c, move) && !this.doesMoveCauseCheckmate(r, c, move)) {
+                                        this.validMoves.push(move);
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        this.skillBtn.classList.remove('bg-purple-800');
+                        this.validMoves = this.getLegalMoves(r, c, piece);
+                    }
+                    this.renderBoard();
+                } else if (piece.type === PIECES.ROOK || piece.type === PIECES.BISHOP) {
+                    this.showExpansionModal(piece.type);
+                }
+            }
+
+            // 순간이동 안전성 검사 (자기 킹 보호)
+            isMoveSafe(r, c, move) {
+                const piece = this.board[r][c];
+                const savedTarget = this.board[move.r][move.c];
+                const savedSource = this.board[r][c];
+                
+                this.board[move.r][move.c] = piece;
+                this.board[r][c] = null;
+                const kingSafe = !this.isKingInCheck(piece.color);
+                
+                // 원복
+                this.board[r][c] = savedSource;
+                this.board[move.r][move.c] = savedTarget;
+                
+                return kingSafe;
+            }
+
+            // 순간이동이 상대방을 '체크메이트' 시키는지 검사
+            doesMoveCauseCheckmate(r, c, move) {
+                const piece = this.board[r][c];
+                const savedTarget = this.board[move.r][move.c];
+                const savedSource = this.board[r][c];
+                
+                // 가상 이동
+                this.board[move.r][move.c] = piece;
+                this.board[r][c] = null;
+                
+                const enemyColor = piece.color === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
+                const isEnemyCheckmated = this.isCheckmate(enemyColor);
+
+                // 원복
+                this.board[r][c] = savedSource;
+                this.board[move.r][move.c] = savedTarget;
+                
+                return isEnemyCheckmated;
+            }
+
+            showExpansionModal(type) {
+                this.gamePaused = true;
+                this.selectionModal.classList.remove('hidden');
+                this.selectionModal.classList.add('flex');
+                this.cardContainer.innerHTML = '';
+                document.getElementById('close-modal-btn').classList.remove('hidden');
+
+                const isRow = type === PIECES.ROOK;
+                document.getElementById('modal-title').innerText = isRow ? "행(Row) 추가" : "열(Col) 추가";
+                document.getElementById('modal-desc').innerText = `어디에 ${isRow ? '가로줄' : '세로줄'}을 추가하시겠습니까?`;
+
+                const max = isRow ? this.rows : this.cols;
+                for(let i=0; i <= max; i++) {
+                    const btn = document.createElement('button');
+                    btn.className = "bg-slate-700 hover:bg-slate-600 text-white p-3 rounded border border-slate-500 min-w-[60px]";
+                    btn.innerText = `${i}번 위치`;
+                    // 클로저를 사용하여 올바른 type과 i를 전달
+                    btn.onclick = () => this.applyExpansion(type, i);
+                    this.cardContainer.appendChild(btn);
+                }
+            }
+
+            applyExpansion(type, index) {
+                if (type === PIECES.ROOK) {
+                    // 행 추가: cols 개수만큼의 null 배열을 index 위치에 삽입
+                    const newRow = Array(this.cols).fill(null);
+                    this.board.splice(index, 0, newRow);
+                    this.rows++;
+                } else {
+                    // 열 추가: 모든 행의 index 위치에 null 삽입
+                    for(let r=0; r<this.rows; r++) {
+                        this.board[r].splice(index, 0, null);
+                    }
+                    this.cols++;
+                }
+                this.closeModal();
+                this.selectedSquare = null; 
+                this.validMoves = [];
+                this.renderBoard();
+                this.endTurn();
+            }
+
+            closeModal() {
+                this.selectionModal.classList.add('hidden');
+                this.selectionModal.classList.remove('flex');
+                this.gamePaused = false;
+                document.getElementById('close-modal-btn').classList.add('hidden');
+            }
+
+            executeMove(fromR, fromC, move) {
+                const piece = this.board[fromR][fromC];
+                const target = this.board[move.r][move.c];
+                let captureOccurred = false;
+
+                if (move.type === 'TELEPORT') {
+                    this.board[move.r][move.c] = piece;
+                    this.board[fromR][fromC] = null;
+                    piece.teleportUsed = true;
+                    this.teleportMode = false;
+                    this.endTurn();
+                    return;
+                }
+
+                if (move.type === 'REVIVE') {
+                    const deadPawn = this.graveyard.filter(p => p.color === piece.color && p.type === PIECES.PAWN).pop();
+                    const idx = this.graveyard.lastIndexOf(deadPawn);
+                    if(idx > -1) this.graveyard.splice(idx, 1);
+                    this.board[move.r][move.c] = deadPawn;
+                    piece.priestUsed = true;
+                    this.endTurn();
+                    return;
+                }
+
+                if (move.type === 'NEUTRALIZE') {
+                    if (target) { target.race = RACES.NEUTRAL; target.job = null; }
+                    this.endTurn();
+                    return;
+                }
+
+                if (target) {
+                    this.graveyard.push(target);
+                    this.capturedPieces[this.turn === COLORS.WHITE ? 'w' : 'b'].push(target);
+                    captureOccurred = true;
+                }
+                if (piece.job === JOBS.GENERAL && move.cleaveTarget) {
+                    const cleaveEnemy = this.board[move.cleaveTarget.r][move.cleaveTarget.c];
+                    if (cleaveEnemy) {
+                        this.graveyard.push(cleaveEnemy);
+                        this.capturedPieces[this.turn === COLORS.WHITE ? 'w' : 'b'].push(cleaveEnemy);
+                        this.board[move.cleaveTarget.r][move.cleaveTarget.c] = null;
+                        captureOccurred = true;
+                    }
+                }
+
+                this.board[move.r][move.c] = piece;
+                this.board[fromR][fromC] = null;
+                piece.moveCount++;
+
+                if (piece.type === PIECES.KNIGHT && piece.moveCount === 4 && !piece.isDragon) {
+                    piece.isDragon = true;
+                    this.statusElement.innerHTML = `<span class="text-red-500 font-bold">나이트가 드래곤으로 진화했습니다!</span>`;
+                }
+
+                if (piece.job === JOBS.ELEMENTALIST && captureOccurred) {
+                    this.board[fromR][fromC] = piece;
+                    const newPawn = this.createPiece(PIECES.PAWN, piece.color);
+                    newPawn.race = RACES.ELF; newPawn.isSpirit = true; newPawn.moveCount = 1;
+                    this.board[move.r][move.c] = newPawn;
+                }
+
+                if (piece.type === PIECES.PAWN && !piece.job && !piece.isSpirit) {
+                    if ((piece.color === COLORS.WHITE && move.r === 0) || (piece.color === COLORS.BLACK && move.r === this.rows - 1)) {
+                        piece.type = PIECES.QUEEN;
+                    }
+                }
+
+                if (piece.type === PIECES.PAWN && !piece.isSpirit) {
+                    if (piece.moveCount === 1) {
+                        this.pendingPiecePos = { r: move.r, c: move.c };
+                        this.pendingAction = 'RACE_SELECT';
+                        this.showSelectionModal('RACE');
+                        return;
+                    }
+                    if (piece.moveCount === 2 && !piece.job) {
+                        this.pendingPiecePos = { r: move.r, c: move.c };
+                        this.pendingAction = 'JOB_SELECT';
+                        this.showSelectionModal('JOB');
+                        return;
+                    }
+                }
+
+                if (piece.job === JOBS.BERSERKER && captureOccurred && !this.extraTurnAvailable) {
+                    this.extraTurnAvailable = true;
+                    this.selectedSquare = null; this.validMoves = [];
+                    this.renderBoard();
+                    this.statusElement.innerHTML = `<span class="text-red-500 font-bold">광전사 효과! 추가 이동!</span>`;
+                    return;
+                }
+
+                this.extraTurnAvailable = false;
+                this.endTurn();
+            }
+
+            endTurn() {
+                const nextTurn = this.turn === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
+                this.checkState = this.isKingInCheck(nextTurn) ? nextTurn : null;
+                
+                if (this.checkState && this.isCheckmate(nextTurn)) {
+                    this.endGame(this.turn);
+                    return;
+                }
+
+                this.turn = nextTurn;
+                this.selectedSquare = null;
+                this.validMoves = [];
+                this.skillBtn.classList.add('hidden');
+                this.teleportMode = false;
+                this.updateStatus();
+                this.updateCapturedUI();
+                this.renderBoard();
+            }
+
+            canAttack(attacker, defender) {
+                if (attacker.type === PIECES.KING) return true;
+                if (!attacker.race || !defender.race || defender.race === RACES.NEUTRAL) return true;
+                return RACE_ADVANTAGE[defender.race] !== attacker.race;
+            }
+
+            getLegalMoves(r, c, piece) {
+                const pseudoMoves = this.getPseudoLegalMoves(r, c, piece);
+                return pseudoMoves.filter(move => {
+                    if (['NEUTRALIZE', 'REVIVE', 'TELEPORT'].includes(move.type)) return true;
+                    const savedTarget = this.board[move.r][move.c];
+                    const savedSource = this.board[r][c];
+                    this.board[move.r][move.c] = piece;
+                    this.board[r][c] = null;
+                    const kingSafe = !this.isKingInCheck(piece.color);
+                    this.board[r][c] = savedSource;
+                    this.board[move.r][move.c] = savedTarget;
+                    return kingSafe;
+                });
+            }
+
+            getPseudoLegalMoves(r, c, piece) {
+                const moves = [];
+                const forward = piece.color === COLORS.WHITE ? -1 : 1;
+                const rows = this.rows;
+                const cols = this.cols;
+
+                const addMove = (tr, tc) => {
+                    if (tr >= 0 && tr < rows && tc >= 0 && tc < cols) {
+                        const target = this.board[tr][tc];
+                        if (!target) {
+                            moves.push({ r: tr, c: tc });
+                            return false; 
+                        } else {
+                            if (target.color !== piece.color && this.canAttack(piece, target)) {
+                                moves.push({ r: tr, c: tc });
+                            }
+                            return true; 
+                        }
+                    }
+                    return true; 
+                };
+
+                const slide = (dirs) => {
+                    for (const [dr, dc] of dirs) {
+                        let tr = r + dr, tc = c + dc;
+                        while (tr >= 0 && tr < rows && tc >= 0 && tc < cols) {
+                            const blocked = addMove(tr, tc);
+                            if (blocked) break;
+                            tr += dr; tc += dc;
+                        }
+                    }
+                };
+
+                if (piece.type === PIECES.PAWN) {
+                    if (r + forward >= 0 && r + forward < rows && !this.board[r + forward][c]) {
+                        moves.push({ r: r + forward, c: c });
+                        if (piece.moveCount === 0 && r + forward * 2 >= 0 && r + forward * 2 < rows && !this.board[r + forward * 2][c]) {
+                            moves.push({ r: r + forward * 2, c: c });
+                        }
+                    }
+                    [[forward, -1], [forward, 1]].forEach(([dr, dc]) => {
+                        const tr = r + dr, tc = c + dc;
+                        if (tr>=0 && tr<rows && tc>=0 && tc<cols) {
+                            const target = this.board[tr][tc];
+                            let generalTarget = null;
+                            if (piece.job === JOBS.GENERAL) {
+                                const oppC = c + (dc * -1);
+                                if(oppC>=0 && oppC<cols) {
+                                    const opT = this.board[r+dr][oppC];
+                                    if(opT && opT.color!==piece.color && this.canAttack(piece, opT)) generalTarget = {r:r+dr, c:oppC};
+                                }
+                            }
+
+                            if (target && target.color !== piece.color) {
+                                if (this.canAttack(piece, target)) {
+                                    const m = { r: tr, c: tc };
+                                    if(generalTarget) m.cleaveTarget = generalTarget;
+                                    moves.push(m);
+                                } else if (piece.job === JOBS.PUNISHER) {
+                                    moves.push({ r: tr, c: tc, type: 'NEUTRALIZE' });
+                                }
+                            } else if (!target && generalTarget) {
+                                moves.push({ r: tr, c: tc, cleaveTarget: generalTarget });
+                            }
+                        }
+                    });
+                    if (piece.job === JOBS.ARCHER) {
+                        const tr = r + forward;
+                        if(tr>=0 && tr<rows) {
+                            const t = this.board[tr][c];
+                            if(t && t.color !== piece.color && this.canAttack(piece, t)) moves.push({r:tr, c});
+                        }
+                    }
+                }
+                else if (piece.type === PIECES.KNIGHT) {
+                    const jumps = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
+                    jumps.forEach(([dr, dc]) => {
+                        addMove(r + dr, c + dc);
+                        if (piece.isDragon) {
+                            addMove(r + dr + forward, c + dc);
+                        }
+                    });
+                }
+                else if (piece.type === PIECES.ROOK) slide([[-1, 0], [1, 0], [0, -1], [0, 1]]);
+                else if (piece.type === PIECES.BISHOP) slide([[-1, -1], [-1, 1], [1, -1], [1, 1]]);
+                else if (piece.type === PIECES.QUEEN) slide([[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]]);
+                else if (piece.type === PIECES.KING) {
+                    [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([dr, dc]) => addMove(r + dr, c + dc));
+                }
+
+                return moves;
+            }
+
+            addReviveMoves(piece) {
+                const deadPawns = this.graveyard.filter(p => p.color === piece.color && p.type === PIECES.PAWN);
+                if (deadPawns.length > 0) {
+                    const spawnRow = piece.color === COLORS.WHITE ? this.rows - 2 : 1; 
+                    for(let col=0; col<this.cols; col++) {
+                        if (!this.board[spawnRow][col]) {
+                            this.validMoves.push({ r: spawnRow, c: col, type: 'REVIVE' });
+                        }
+                    }
+                }
+            }
+
+            findKing(color) {
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const p = this.board[r][c];
+                        if (p && p.type === PIECES.KING && p.color === color) return { r, c };
+                    }
+                }
+                return null;
+            }
+            isKingInCheck(color) {
+                const kingPos = this.findKing(color);
+                if (!kingPos) return false;
+                const enemyColor = color === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
+                
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const p = this.board[r][c];
+                        if (p && p.color === enemyColor) {
+                            const moves = this.getPseudoLegalMoves(r, c, p);
+                            if (moves.some(m => m.r === kingPos.r && m.c === kingPos.c)) return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            isCheckmate(color) { return this.isKingInCheck(color) && !this.hasAnyLegalMoves(color); }
+            hasAnyLegalMoves(color) {
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const p = this.board[r][c];
+                        if (p && p.color === color && this.getLegalMoves(r, c, p).length > 0) return true;
+                    }
+                }
+                return false;
+            }
+
+            updateStatus() {
+                let text = this.turn === COLORS.WHITE ? "백색 차례" : "흑색 차례";
+                if (this.checkState) text += " - <span class='text-red-400 font-bold'>체크!</span>";
+                this.statusElement.innerHTML = text;
+            }
+
+            updateCapturedUI() {
+                const render = (id, list) => {
+                    const el = document.getElementById(id);
+                    el.innerHTML = '';
+                    list.forEach(p => {
+                        const div = document.createElement('div');
+                        div.className = "relative w-6 h-6 flex items-center justify-center";
+                        div.innerHTML = `<i class="fas ${PIECE_ICONS[p.type]} ${p.color === 'w' ? 'text-white' : 'text-black'} text-shadow-sm"></i>`;
+                        el.appendChild(div);
+                    });
+                };
+                render('captured-w', this.capturedPieces.w);
+                render('captured-b', this.capturedPieces.b);
+            }
+
+            endGame(winner) {
+                this.gameActive = false;
+                const modal = document.getElementById('game-end-modal');
+                document.getElementById('end-title').innerText = winner === 'draw' ? "무승부" : `${winner === 'w' ? '백색' : '흑색'} 승리!`;
+                document.getElementById('end-message').innerText = "게임이 종료되었습니다.";
+                modal.classList.remove('hidden');
+            }
+
+            showSelectionModal(mode) {
+                this.gamePaused = true;
+                this.selectionModal.classList.remove('hidden');
+                this.selectionModal.classList.add('flex');
+                this.cardContainer.innerHTML = '';
+                document.getElementById('close-modal-btn').classList.add('hidden');
+
+                const piece = this.pendingPiecePos ? this.board[this.pendingPiecePos.r][this.pendingPiecePos.c] : null;
+
+                if (mode === 'RACE') {
+                    document.getElementById('modal-title').innerText = "종족 선택";
+                    document.getElementById('modal-desc').innerText = "이 기물의 종족을 선택하세요";
+                    this.createCard(RACES.HUMAN, '인간', '엘프에게 강함', 'fa-user-shield', 'text-blue-400', () => this.handleSelection('RACE', RACES.HUMAN));
+                    this.createCard(RACES.ORC, '오크', '인간에게 강함', 'fa-hand-fist', 'text-red-500', () => this.handleSelection('RACE', RACES.ORC));
+                    this.createCard(RACES.ELF, '엘프', '오크에게 강함', 'fa-leaf', 'text-green-400', () => this.handleSelection('RACE', RACES.ELF));
+                } 
+                else if (mode === 'JOB') {
+                    document.getElementById('modal-title').innerText = "전직 (2차)";
+                    document.getElementById('modal-desc').innerText = "기물의 직업을 선택하세요";
+                    if (piece.race === RACES.ORC) {
+                        this.createCard(JOBS.BERSERKER, '광전사', '처치 시 추가 이동', 'fa-fire', 'text-red-500', () => this.handleSelection('JOB', JOBS.BERSERKER));
+                        this.createCard(JOBS.PUNISHER, '징벌자', '상성 무시하고 중립화', 'fa-gavel', 'text-orange-500', () => this.handleSelection('JOB', JOBS.PUNISHER));
+                    } else if (piece.race === RACES.ELF) {
+                        this.createCard(JOBS.ARCHER, '사수', '전방 공격 가능', 'fa-bullseye', 'text-green-400', () => this.handleSelection('JOB', JOBS.ARCHER));
+                        this.createCard(JOBS.ELEMENTALIST, '정령술사', '처치 시 폰 소환', 'fa-wind', 'text-teal-400', () => this.handleSelection('JOB', JOBS.ELEMENTALIST));
+                    } else if (piece.race === RACES.HUMAN) {
+                        this.createCard(JOBS.PRIEST, '사제', '죽은 아군 부활', 'fa-cross', 'text-blue-300', () => this.handleSelection('JOB', JOBS.PRIEST));
+                        this.createCard(JOBS.GENERAL, '장수', '양옆 대각선 공격', 'fa-chess-board', 'text-indigo-400', () => this.handleSelection('JOB', JOBS.GENERAL));
+                    }
+                }
+            }
+
+            createCard(value, title, desc, iconClass, colorClass, callback) {
+                const card = document.createElement('div');
+                card.className = `level-up-card bg-slate-800 border-2 border-slate-600 rounded-xl p-4 flex flex-col items-center flex-1 text-center hover:bg-slate-700 min-w-[140px]`;
+                card.onclick = callback;
+                card.innerHTML = `
+                    <i class="fas ${iconClass} text-4xl ${colorClass} mb-2"></i>
+                    <h3 class="text-xl font-bold text-white mb-1">${title}</h3>
+                    <p class="text-xs text-gray-400 break-keep">${desc}</p>
+                `;
+                this.cardContainer.appendChild(card);
+            }
+
+            handleSelection(type, value) {
+                const piece = this.board[this.pendingPiecePos.r][this.pendingPiecePos.c];
+                if (type === 'RACE') piece.race = value;
+                else if (type === 'JOB') piece.job = value;
+
+                this.closeModal();
+                this.pendingPiecePos = null;
+                this.pendingAction = null;
+                this.renderBoard();
+                this.endTurn();
+            }
+        }
+
+        const game = new ChessGame();
+        function closeEndModal() {
+            document.getElementById('game-end-modal').classList.add('hidden');
+            game.resetGame();
+        }
+    </script>
+</body>
+</html>
