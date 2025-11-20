@@ -169,7 +169,8 @@
         @keyframes spin { 100% { transform: rotate(360deg); } }
         
         .dragon-effect .token-icon {
-            color: #e74c3c !important; filter: drop-shadow(0 0 5px #c0392b);
+            /* 색상 강제 변경 제거 -> 필터로 붉은 기운만 추가 */
+            filter: drop-shadow(0 0 5px #c0392b) sepia(50%) saturate(200%) hue-rotate(-50deg);
             animation: bounce 2s infinite;
         }
         @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
@@ -227,6 +228,9 @@
             <p class="text-xl text-gray-400 mb-8 tracking-widest">ONLINE MULTIPLAYER</p>
             
             <div class="space-y-4 w-full max-w-md flex flex-col items-center">
+                <!-- 닉네임 입력 추가 -->
+                <input type="text" id="nickname-input" placeholder="YOUR NICKNAME" class="pixel-box w-64 p-3 bg-black text-white text-center tracking-widest border-2 border-blue-400 focus:border-white outline-none mb-2 text-lg">
+
                 <button onclick="createRoom()" class="pixel-btn w-64 bg-blue-600 text-white py-4 text-2xl hover:bg-blue-500">
                     <i class="fas fa-plus-circle mr-2"></i> CREATE ROOM
                 </button>
@@ -250,11 +254,13 @@
         <div class="flex flex-col items-center w-full max-w-[600px] shrink-0">
             
             <!-- Header -->
-            <div class="pixel-box w-full mb-4 p-4 flex justify-between items-center">
+            <div class="pixel-box w-full mb-4 p-4 flex justify-between items-center relative">
                 <div>
                     <!-- 타이틀 ID 추가 -->
                     <h1 id="game-title" class="text-4xl font-bold text-yellow-400 italic cursor-pointer" onclick="location.reload()" title="Go to Main Menu" style="text-shadow: 3px 3px 0 #000;">DRAGON CHESS</h1>
                     <div id="status" class="text-xl mt-1 text-gray-300 tracking-widest">PRESS START</div>
+                    <!-- 닉네임 표시 영역 -->
+                    <div id="players-display" class="text-sm text-blue-300 mt-1 hidden"></div>
                 </div>
                 <div class="flex gap-3">
                     <!-- 리셋 버튼 ID는 없어도 되지만 onclick 함수 내에서 텍스트 변경 예정 -->
@@ -508,6 +514,8 @@
         let currentRoomId = null;
         let myPlayerColor = null; // 'w' or 'b' (Local 모드일 땐 무시됨)
         let isMultiplayer = false;
+        let myNickname = "Player";
+        let opponentNickname = "Opponent";
 
         // 1. Mode Selection
         function startLocalMode() {
@@ -516,6 +524,7 @@
             document.getElementById('game-screen').classList.remove('hidden');
             document.getElementById('game-screen').classList.add('flex');
             document.getElementById('reset-btn').classList.remove('hidden'); // 로컬에선 보임
+            document.getElementById('players-display').classList.add('hidden'); // 로컬에선 숨김
             game.resetGame();
         }
 
@@ -524,6 +533,11 @@
             document.getElementById('lobby-screen').classList.remove('hidden');
             document.getElementById('lobby-screen').classList.add('flex');
             document.getElementById('reset-btn').classList.add('hidden'); // 온라인에선 숨김
+            
+            // 랜덤 닉네임 생성 (기본값)
+            const randomNames = ["Dragon", "Knight", "Wizard", "Orc", "Elf"];
+            const randomNum = Math.floor(Math.random() * 1000);
+            document.getElementById('nickname-input').value = `${randomNames[Math.floor(Math.random() * randomNames.length)]}${randomNum}`;
         }
 
         function backToMenu() {
@@ -535,15 +549,22 @@
         // 2. Online Logic
         function createRoom() {
             if (!database) return alert("Firebase 설정이 필요합니다.");
+            const nickname = document.getElementById('nickname-input').value.trim() || "Unknown";
+            myNickname = nickname;
+
             const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
             const roomRef = database.ref('rooms/' + roomId);
             
             document.getElementById('lobby-status').innerText = `CREATING ROOM: ${roomId}...`;
             
+            // 내 연결 상태 관리 (접속 끊기면 status: disconnected)
+            const myRef = roomRef.child('host');
+            myRef.onDisconnect().update({ status: 'disconnected' });
+            
             roomRef.set({
                 created: firebase.database.ServerValue.TIMESTAMP,
                 status: 'waiting',
-                host: 'connected'
+                host: { name: nickname, status: 'connected' }
             }).then(() => {
                 currentRoomId = roomId;
                 myPlayerColor = 'w';
@@ -558,15 +579,25 @@
 
         function joinRoom() {
             if (!database) return alert("Firebase 설정이 필요합니다.");
+            const nickname = document.getElementById('nickname-input').value.trim() || "Unknown";
+            myNickname = nickname;
+
             const roomId = document.getElementById('room-code-input').value.trim().toUpperCase();
             if (!roomId) return alert("방 코드를 입력하세요.");
 
             const roomRef = database.ref('rooms/' + roomId);
             roomRef.get().then((snapshot) => {
                 if (snapshot.exists() && snapshot.val().status === 'waiting') {
+                    const hostName = snapshot.val().host ? snapshot.val().host.name : "Opponent";
+                    opponentNickname = hostName; // 호스트 닉네임 저장
+
+                    // 내 연결 상태 관리
+                    const myRef = roomRef.child('guest');
+                    myRef.onDisconnect().update({ status: 'disconnected' });
+
                     roomRef.update({
                         status: 'playing',
-                        guest: 'connected'
+                        guest: { name: nickname, status: 'connected' }
                     }).then(() => {
                         currentRoomId = roomId;
                         myPlayerColor = 'b';
@@ -580,12 +611,16 @@
         }
 
         function waitForOpponent(roomId) {
-            document.getElementById('lobby-status').innerHTML = `ROOM CODE: <span class="text-4xl text-white bg-blue-600 px-2">${roomId}</span><br>WAITING FOR OPPONENT...`;
+            document.getElementById('lobby-status').innerHTML = `ROOM CODE: <span class="text-4xl text-white bg-blue-600 px-2">${roomId}</span><br>WAITING for OPPONENT...`;
             
             const roomRef = database.ref('rooms/' + roomId);
             roomRef.on('child_changed', (snapshot) => {
                 if (snapshot.key === 'status' && snapshot.val() === 'playing') {
-                    startGame(roomId);
+                    // 게스트가 들어왔을 때 게스트 닉네임 가져오기
+                    roomRef.child('guest').get().then((snap) => {
+                        opponentNickname = snap.val() ? snap.val().name : "Opponent";
+                        startGame(roomId);
+                    });
                 }
             });
         }
@@ -595,7 +630,25 @@
             document.getElementById('game-screen').classList.remove('hidden');
             document.getElementById('game-screen').classList.add('flex');
             
+            // 닉네임 표시
+            const displayEl = document.getElementById('players-display');
+            displayEl.classList.remove('hidden');
+            
+            let whiteName = myPlayerColor === 'w' ? myNickname : opponentNickname;
+            let blackName = myPlayerColor === 'b' ? myNickname : opponentNickname;
+            
+            // 이름이 너무 길면 자르기
+            if(whiteName.length > 10) whiteName = whiteName.substring(0,10) + "..";
+            if(blackName.length > 10) blackName = blackName.substring(0,10) + "..";
+
+            displayEl.innerHTML = `
+                <span class="text-white"><i class="fas fa-chess-king"></i> ${whiteName}</span> 
+                <span class="mx-2 text-gray-500">vs</span> 
+                <span class="text-gray-400"><i class="fas fa-chess-king"></i> ${blackName}</span>
+            `;
+
             game.initMultiplayer(roomId, myPlayerColor);
+            game.listenForDisconnection(roomId, myPlayerColor);
         }
 
 
@@ -1345,28 +1398,30 @@
                 this.cardContainer.appendChild(card);
             }
             handleSelection(type, value, isRemote = false) {
+                // 1. 기물 정보 업데이트
                 const piece = this.board[this.pendingPiecePos.r][this.pendingPiecePos.c];
                 if (type === 'RACE') piece.race = value;
                 else if (type === 'JOB') piece.job = value;
 
+                // 2. 로컬 플레이어라면: 선택 결과를 서버로 전송
                 if (isMultiplayer && !isRemote) {
-                    // 지연된 이동 액션이 있다면 지금 전송
+                    // 지연된 이동 액션(MOVE)을 먼저 전송
                     if (this.deferredMove) {
-                        // 중요: 상대방에게 MOVE를 먼저 보내고 -> 그 다음 SELECTION을 보냄
-                        // 상대방은 MOVE를 받으면 이동을 수행하고, SELECTION을 받으면 속성을 적용함
                         this.sendAction('MOVE', this.deferredMove);
                         this.deferredMove = null;
                     }
+                    // 그 다음 선택 액션(SELECTION) 전송
                     this.sendAction('SELECTION', { type, value, pos: this.pendingPiecePos });
                 }
 
+                // 3. UI 정리
                 this.selectionModal.classList.add('hidden');
                 this.selectionModal.classList.remove('flex');
                 this.gamePaused = false;
                 this.renderBoard();
                 
-                // 버그 수정: 선택이 끝나면 턴을 확실하게 종료해야 함
-                // executeMove에서 성장 트리거 시 return 했으므로, 여기서 대신 처리
+                // 4. 턴 종료 처리 (중요: 로컬이든 원격이든 '선택'이 끝나면 턴을 넘겨야 함)
+                // executeMove에서 성장 트리거 시 return 했으므로, 여기서 턴을 종료함.
                 if (!this.extraTurnAvailable) {
                     this.endTurn();
                 } else {
@@ -1407,6 +1462,30 @@
                         this.applyRemoteAction(action);
                     }
                 });
+            }
+
+            listenForDisconnection(roomId, myColor) {
+                const opponentRole = myColor === 'w' ? 'guest' : 'host';
+                const opponentStatusRef = firebase.database().ref(`rooms/${roomId}/${opponentRole}/status`);
+                
+                opponentStatusRef.on('value', (snapshot) => {
+                    if (snapshot.val() === 'disconnected' && this.gameActive) {
+                        this.handleDisconnectionWin();
+                    }
+                });
+            }
+
+            handleDisconnectionWin() {
+                this.gameActive = false;
+                const modal = document.getElementById('game-end-modal');
+                document.getElementById('end-title').innerText = "YOU WIN!";
+                document.getElementById('end-message').innerText = "OPPONENT DISCONNECTED";
+                
+                const btn = modal.querySelector('button');
+                btn.innerText = "LOBBY";
+                btn.onclick = () => location.reload();
+                
+                modal.classList.remove('hidden');
             }
 
             applyRemoteAction(action) {
