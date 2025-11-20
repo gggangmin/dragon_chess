@@ -1403,6 +1403,13 @@
                 if (type === 'RACE') piece.race = value;
                 else if (type === 'JOB') piece.job = value;
 
+                // 4. 턴 종료 처리 (먼저 처리하여 nextTurn을 확정)
+                if (!this.extraTurnAvailable) {
+                    this.endTurn();
+                } else {
+                    this.updateStatus();
+                }
+
                 // 2. 로컬 플레이어라면: 선택 결과를 서버로 전송
                 if (isMultiplayer && !isRemote) {
                     // 지연된 이동 액션(MOVE)을 먼저 전송
@@ -1410,8 +1417,13 @@
                         this.sendAction('MOVE', this.deferredMove);
                         this.deferredMove = null;
                     }
-                    // 그 다음 선택 액션(SELECTION) 전송
-                    this.sendAction('SELECTION', { type, value, pos: this.pendingPiecePos });
+                    // 그 다음 선택 액션(SELECTION) 전송 - *중요: 다음 턴 정보도 함께 보냄*
+                    this.sendAction('SELECTION', { 
+                        type, 
+                        value, 
+                        pos: this.pendingPiecePos,
+                        nextTurn: this.turn // endTurn() 실행 후의 턴
+                    });
                 }
 
                 // 3. UI 정리
@@ -1419,15 +1431,6 @@
                 this.selectionModal.classList.remove('flex');
                 this.gamePaused = false;
                 this.renderBoard();
-                
-                // 4. 턴 종료 처리 (중요: 로컬이든 원격이든 '선택'이 끝나면 턴을 넘겨야 함)
-                // executeMove에서 성장 트리거 시 return 했으므로, 여기서 턴을 종료함.
-                if (!this.extraTurnAvailable) {
-                    this.endTurn();
-                } else {
-                    // 광전사 등으로 추가 턴이 있는 경우 상태 업데이트
-                    this.updateStatus();
-                }
             }
             
             // --- Multiplayer Methods ---
@@ -1497,10 +1500,21 @@
                     this.executeMove(payload.from.r, payload.from.c, payload.to, true);
                 } 
                 else if (type === 'SELECTION') {
-                    // payload: { type: 'RACE'|'JOB', value: '...', pos: {r,c} }
-                    // 원격 선택의 경우 pendingPiecePos를 강제로 맞춰줘야 함
+                    // payload: { type, value, pos, nextTurn }
                     this.pendingPiecePos = payload.pos; 
+                    // 원격 호출 시에는 내부에서 endTurn을 호출하지만,
+                    // 혹시 모를 불일치를 위해 payload에 있는 nextTurn으로 강제 동기화할 수도 있음.
+                    // 일단 호출은 그대로 하되, handleSelection 내부 순서를 변경했으므로 
+                    // 원격 실행 시에는 전송 로직만 빠지고 턴 계산은 동일하게 수행됨.
                     this.handleSelection(payload.type, payload.value, true);
+                    
+                    // [강제 동기화] 턴 불일치 방지
+                    if (payload.nextTurn && this.turn !== payload.nextTurn) {
+                        console.log("Force Sync Turn:", this.turn, "->", payload.nextTurn);
+                        this.turn = payload.nextTurn;
+                        this.updateStatus();
+                        this.renderBoard();
+                    }
                 } 
                 else if (type === 'EXPANSION') {
                     // payload: { type: PIECES.ROOK, index: 3 }
