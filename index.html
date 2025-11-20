@@ -1213,35 +1213,51 @@
             animateMove(fromR, fromC, toR, toC, callback) {
                 const fromSquare = this.boardElement.children[fromR * this.cols + fromC];
                 const toSquare = this.boardElement.children[toR * this.cols + toC];
+                
+                // token-container를 찾되, 없으면 바로 콜백 (예: 텔레포트 등)
                 const pieceEl = fromSquare.querySelector('.token-container');
-
                 if (!pieceEl) { callback(); return; }
 
                 // 1. Clone for animation
-                const clone = pieceEl.cloneNode(true);
-                const rectFrom = fromSquare.getBoundingClientRect();
+                // 좌표 계산: getBoundingClientRect는 뷰포트 기준이므로, 
+                // body에 붙일 때는 scrollY/scrollX를 더해줘야 문서 전체 기준 절대 좌표가 됨.
+                const rectFrom = pieceEl.getBoundingClientRect();
                 const rectTo = toSquare.getBoundingClientRect();
                 
+                const clone = pieceEl.cloneNode(true);
                 clone.classList.add('moving-piece');
-                clone.style.width = pieceEl.style.width || '85%'; // 기존 크기 유지
-                clone.style.height = pieceEl.style.height || '85%';
-                clone.style.left = rectFrom.left + 'px';
-                clone.style.top = rectFrom.top + 'px';
                 
-                // 실제 기물은 잠시 숨김
-                pieceEl.style.opacity = '0';
+                // 스타일 강제 주입 (크기 및 위치 고정)
+                // 기존 CSS의 % 단위 대신 픽셀 단위로 고정하여 깨짐 방지
+                clone.style.width = rectFrom.width + 'px';
+                clone.style.height = rectFrom.height + 'px';
+                clone.style.left = (rectFrom.left + window.scrollX) + 'px';
+                clone.style.top = (rectFrom.top + window.scrollY) + 'px';
+                clone.style.margin = '0'; // 마진 제거
+                clone.style.transform = 'none'; // 초기 트랜스폼 제거
+                
+                // 실제 기물은 숨김 (공간은 차지하되 보이지 않게)
+                pieceEl.style.visibility = 'hidden'; 
                 document.body.appendChild(clone);
 
                 // 2. Animate
+                // 브라우저가 DOM 추가를 인식하도록 잠시 대기 (Reflow 강제)
+                void clone.offsetWidth; 
+
                 requestAnimationFrame(() => {
-                    clone.style.transform = `translate(${rectTo.left - rectFrom.left}px, ${rectTo.top - rectFrom.top}px)`;
+                    // 목표 위치 계산 (상대 거리)
+                    // 문서 기준 좌표 차이 = (목표 절대좌표) - (시작 절대좌표)
+                    const deltaX = (rectTo.left + window.scrollX) + (rectTo.width - rectFrom.width)/2 - (rectFrom.left + window.scrollX);
+                    const deltaY = (rectTo.top + window.scrollY) + (rectTo.height - rectFrom.height)/2 - (rectFrom.top + window.scrollY);
+                    
+                    clone.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
                 });
 
-                // 3. Cleanup after transition
+                // 3. Cleanup
                 setTimeout(() => {
                     clone.remove();
-                    callback(); // 실제 로직 실행
-                }, 300); // CSS transition time과 일치
+                    callback(); // 로직 실행 (이때 실제 보드가 갱신됨)
+                }, 300);
             }
 
             playKillEffect(attackerRace, r, c) {
@@ -1249,51 +1265,56 @@
                 const targetEl = square.querySelector('.token-container');
                 if (!targetEl) return;
 
-                // 타겟 복제 (애니메이션용)
+                // 타겟 복제
+                const rect = targetEl.getBoundingClientRect();
                 const clone = targetEl.cloneNode(true);
-                const rect = square.getBoundingClientRect();
+                
+                // 문서 기준 절대 좌표로 설정
                 clone.style.position = 'absolute';
-                clone.style.left = rect.left + 'px';
-                clone.style.top = rect.top + 'px';
-                clone.style.width = rect.width * 0.85 + 'px';
-                clone.style.height = rect.height * 0.85 + 'px';
+                clone.style.left = (rect.left + window.scrollX) + 'px';
+                clone.style.top = (rect.top + window.scrollY) + 'px';
+                clone.style.width = rect.width + 'px';
+                clone.style.height = rect.height + 'px';
                 clone.style.zIndex = '40';
+                clone.style.margin = '0';
+                
                 document.body.appendChild(clone);
 
                 if (attackerRace === RACES.ORC) {
                     // Shatter Effect
                     clone.classList.add('shatter-piece');
+                    // 파편 생성 위치도 절대 좌표 기준으로 수정 필요하지만, 
+                    // 간단하게 clone 내부가 아닌 body에 붙이므로 위치 계산 필요
                     for(let i=0; i<8; i++) {
                         const shard = document.createElement('div');
                         shard.className = 'shard';
-                        shard.style.left = (rect.left + rect.width/2) + 'px';
-                        shard.style.top = (rect.top + rect.height/2) + 'px';
+                        shard.style.left = (rect.left + window.scrollX + rect.width/2) + 'px';
+                        shard.style.top = (rect.top + window.scrollY + rect.height/2) + 'px';
+                        
                         const tx = (Math.random() - 0.5) * 100 + 'px';
                         const ty = (Math.random() - 0.5) * 100 + 'px';
                         const rot = Math.random() * 360 + 'deg';
+                        
                         shard.style.setProperty('--tx', tx);
                         shard.style.setProperty('--ty', ty);
                         shard.style.setProperty('--r', rot);
+                        
                         document.body.appendChild(shard);
                         setTimeout(() => shard.remove(), 500);
                     }
                     setTimeout(() => clone.remove(), 100);
                 } 
                 else if (attackerRace === RACES.ELF) {
-                    // Dissolve Effect
                     clone.classList.add('fade-kill');
                     setTimeout(() => clone.remove(), 600);
                 } 
                 else if (attackerRace === RACES.HUMAN) {
-                    // Cleave Effect (Split in half)
-                    // 복잡하므로 간단히 CSS clip-path animation 사용
                     const left = clone.cloneNode(true);
                     const right = clone.cloneNode(true);
                     
                     left.classList.add('cleaved-left');
                     right.classList.add('cleaved-right');
                     
-                    // 원래 clone은 숨김
                     clone.style.opacity = '0';
                     document.body.appendChild(left);
                     document.body.appendChild(right);
@@ -1305,7 +1326,6 @@
                     }, 500);
                 }
                 else {
-                    // Default (Neutral etc): Just fade out fast
                     clone.style.transition = 'all 0.2s';
                     clone.style.transform = 'scale(0)';
                     setTimeout(() => clone.remove(), 200);
