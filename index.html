@@ -185,16 +185,17 @@
         /* 2. 오크: 산산조각 (Shatter) */
         .shatter-piece { animation: shatter-shake 0.1s infinite; }
         .shard {
-            position: absolute; width: 12px; height: 12px;
-            background-color: #fff; /* 눈에 띄는 흰색 */
-            box-shadow: 0 0 4px rgba(255,255,255,0.8); /* 빛나는 효과 */
+            position: absolute; width: 14px; height: 14px; /* 파편 크기 증가 */
+            background-color: #fff; 
+            box-shadow: 0 0 6px rgba(255,255,255,0.9); /* 빛 효과 강화 */
             z-index: 100; pointer-events: none;
-            animation: shard-fly 0.5s cubic-bezier(0.165, 0.84, 0.44, 1) forwards; /* 팍 터지는 느낌 */
+            animation: shard-fly 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) forwards; /* 지속시간 증가 */
         }
-        @keyframes shatter-shake { 0% { transform: translate(2px, 2px); } 100% { transform: translate(-2px, -2px); } }
+        @keyframes shatter-shake { 0% { transform: translate(3px, 3px); } 100% { transform: translate(-3px, -3px); } } /* 진동 폭 증가 */
         @keyframes shard-fly {
-            0% { opacity: 1; transform: translate(var(--tx), var(--ty)) scale(0.5); }
-            100% { opacity: 0; transform: translate(calc(var(--tx) * 3), calc(var(--ty) * 3)) rotate(var(--r)) scale(0); }
+            0% { opacity: 1; transform: translate(var(--tx), var(--ty)) scale(0.8); }
+            60% { opacity: 1; } /* 중간까지 투명도 유지 */
+            100% { opacity: 0; transform: translate(calc(var(--tx) * 4), calc(var(--ty) * 4)) rotate(var(--r)) scale(0); }
         }
 
         /* 3. 맵 확장: 화면 흔들림 & 타일 솟아오름 */
@@ -829,6 +830,11 @@
                 this.checkState = null;
                 this.extraTurnAvailable = false;
                 this.teleportMode = false; 
+                
+                // [Animation & Action Queue]
+                this.isAnimating = false;
+                this.actionQueue = [];
+
                 this.renderBoard();
                 this.updateStatus();
                 this.updateCapturedUI();
@@ -867,6 +873,10 @@
                         const square = document.createElement('div');
                         const isDark = (r + c) % 2 === 1;
                         square.className = `flex items-center justify-center relative aspect-square ${isDark ? 'square-dark' : 'square-light'}`;
+                        
+                        // [Animation] 좌표 정보 저장 (확장 애니메이션 식별용)
+                        square.dataset.row = r;
+                        square.dataset.col = c;
 
                         // Highlights
                         if (this.selectedSquare && this.selectedSquare.r === r && this.selectedSquare.c === c) square.classList.add('square-selected');
@@ -1135,7 +1145,7 @@
                 this.closeModal();
             }
 
-            executeMove(fromR, fromC, move, isRemote = false, pieceState = null) {
+            executeMove(fromR, fromC, move, isRemote = false, pieceState = null, nextTurnPayload = null) {
                 const piece = this.board[fromR][fromC];
                 
                 // [중요] 원격 이동일 경우, 전달받은 최신 상태(종족/직업)를 즉시 적용
@@ -1147,13 +1157,24 @@
                 const target = this.board[move.r][move.c];
                 
                 // 이동 애니메이션 실행 (비동기)
-                // 원격이든 로컬이든 애니메이션은 보여준다.
+                this.isAnimating = true; 
                 this.animateMove(fromR, fromC, move.r, move.c, () => {
-                    this.finalizeMove(fromR, fromC, move, isRemote);
+                    this.finalizeMove(fromR, fromC, move, isRemote, nextTurnPayload);
+                    
+                    this.isAnimating = false;
+                    this.processActionQueue();
                 });
             }
 
-            finalizeMove(fromR, fromC, move, isRemote) {
+            processActionQueue() {
+                while (this.actionQueue.length > 0 && !this.isAnimating) {
+                    const action = this.actionQueue.shift();
+                    console.log("Processing queued action:", action.type);
+                    this.applyRemoteAction(action);
+                }
+            }
+
+            finalizeMove(fromR, fromC, move, isRemote, nextTurnPayload = null) {
                 // [Undo] 로컬 이동이고 아직 확정되지 않은 경우 스냅샷 저장
                 if (!isRemote) {
                     this.snapshot = this.createSnapshot();
@@ -1245,32 +1266,61 @@
 
                 // 성장 이벤트가 발생했다면 여기서 중단 (전송 안 함, 턴 종료 안 함)
                 if (growthTriggered) {
-                    // 애니메이션 후 렌더링이 되므로, 성장 모달 뒤에 보드가 갱신되어 있어야 함.
-                    // animateMove 콜백 내이므로 renderBoard를 여기서 한번 해주는게 좋음.
                     this.renderBoard();
                     return;
                 }
 
-                // 성장 이벤트가 없었다면 정상적으로 전송 및 턴 종료
+                // [Multiplayer] Send Move Action
                 if (isMultiplayer && !isRemote) {
-                    // 일반 이동 시에도 현재 기물 상태를 같이 보냄 (중요)
+                    // 다음 턴 계산 (정확한 로직 적용)
+                    // 기본적으로 턴은 넘어감
+                    let nextTurnColor = (this.turn === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE);
+                    
+                    // 광전사(Berserker)가 처치(Capture)했고, 추가 턴이 없다면 -> 턴 유지 (내 턴)
+                    if (piece.job === JOBS.BERSERKER && captureOccurred && !this.extraTurnAvailable) {
+                        nextTurnColor = this.turn;
+                    }
+
                     this.sendAction('MOVE', { 
                         from: {r: fromR, c: fromC}, 
                         to: move,
-                        pieceState: { race: piece.race, job: piece.job }, // 상태 동기화 추가
-                        nextTurn: (!this.extraTurnAvailable && piece.job !== JOBS.BERSERKER) ? (this.turn === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE) : this.turn // [수정] 다음 턴 정보 미리 계산해서 전송
+                        pieceState: { race: piece.race, job: piece.job }, 
+                        nextTurn: nextTurnColor 
                     });
                 }
 
+                // Berserker Logic (Local/Remote Common)
                 if (piece.job === JOBS.BERSERKER && captureOccurred && !this.extraTurnAvailable) {
                     this.extraTurnAvailable = true;
                     this.selectedSquare = null; this.validMoves = [];
                     this.renderBoard();
                     this.statusElement.innerHTML = `<span class="text-red-500 font-bold">${TEXT[currentLang].RAGE}</span>`;
+                    
+                    // [Remote Sync] 원격에서 nextTurnPayload가 내 턴이라면 여기서 종료 (턴 안 넘김)
                     return;
                 }
+
                 this.extraTurnAvailable = false;
-                this.endTurn();
+
+                // [Turn End]
+                // 원격 이동의 경우, 페이로드에 있는 nextTurn 정보를 최우선으로 신뢰하여 강제 동기화
+                if (isRemote && nextTurnPayload) {
+                    if (this.turn !== nextTurnPayload) {
+                        console.log("Force Sync Turn (Move):", this.turn, "->", nextTurnPayload);
+                        this.turn = nextTurnPayload;
+                        this.checkState = this.isKingInCheck(this.turn) ? this.turn : null; // 체크 상태 재계산
+                        this.updateStatus();
+                        this.updateCapturedUI();
+                        this.renderBoard();
+                    } else {
+                        // 턴이 같다면(예: 광전사 재행동), 굳이 endTurn 호출 안 함
+                        this.updateStatus();
+                        this.renderBoard();
+                    }
+                } else {
+                    // 로컬이거나 레거시 처리
+                    this.endTurn();
+                }
             }
 
             // --- Animation Methods ---
@@ -1348,27 +1398,35 @@
                 if (attackerRace === RACES.ORC) {
                     // Shatter Effect
                     clone.classList.add('shatter-piece');
-                    // 파편 생성 위치도 절대 좌표 기준으로 수정 필요하지만, 
-                    // 간단하게 clone 내부가 아닌 body에 붙이므로 위치 계산 필요
-                    for(let i=0; i<12; i++) { // 파편 개수 증가 (8 -> 12)
+                    
+                    // 파편 개수 및 확산 범위 증가
+                    for(let i=0; i<16; i++) { 
                         const shard = document.createElement('div');
                         shard.className = 'shard';
-                        shard.style.left = (rect.left + window.scrollX + rect.width/2 - 6) + 'px'; // 중심 보정
-                        shard.style.top = (rect.top + window.scrollY + rect.height/2 - 6) + 'px';
+                        // 중앙에서 랜덤한 위치 시작
+                        const offsetX = (Math.random() - 0.5) * rect.width * 0.5;
+                        const offsetY = (Math.random() - 0.5) * rect.height * 0.5;
                         
-                        const tx = (Math.random() - 0.5) * 150 + 'px'; // 비산 거리 증가
-                        const ty = (Math.random() - 0.5) * 150 + 'px';
-                        const rot = Math.random() * 720 + 'deg'; // 회전량 증가
+                        shard.style.left = (rect.left + window.scrollX + rect.width/2 + offsetX - 7) + 'px'; 
+                        shard.style.top = (rect.top + window.scrollY + rect.height/2 + offsetY - 7) + 'px';
+                        
+                        // 더 넓게 퍼지도록 범위 증가
+                        const dist = 100 + Math.random() * 150;
+                        const angle = Math.random() * Math.PI * 2;
+                        
+                        const tx = (Math.cos(angle) * dist) + 'px';
+                        const ty = (Math.sin(angle) * dist) + 'px';
+                        const rot = (Math.random() * 720 - 360) + 'deg'; 
                         
                         shard.style.setProperty('--tx', tx);
                         shard.style.setProperty('--ty', ty);
                         shard.style.setProperty('--r', rot);
                         
                         document.body.appendChild(shard);
-                        setTimeout(() => shard.remove(), 500);
+                        setTimeout(() => shard.remove(), 800);
                     }
-                    // 본체는 잠깐 흔들리다가 사라짐 (타격감)
-                    setTimeout(() => clone.remove(), 150);
+                    // 본체가 떨리는 연출을 조금 더 길게 보여줌
+                    setTimeout(() => clone.remove(), 250);
                 } 
                 else if (attackerRace === RACES.ELF) {
                     clone.classList.add('fade-kill');
@@ -1743,17 +1801,20 @@
             }
 
             applyRemoteAction(action) {
+                // [Action Queue] 애니메이션 중이면 액션을 대기열에 넣고 보류
+                if (this.isAnimating) {
+                    console.log("Queueing action (animating):", action.type);
+                    this.actionQueue.push(action);
+                    return;
+                }
+
                 console.log("Remote Action:", action);
                 const { type, payload } = action;
 
                 if (type === 'MOVE') {
                     // payload: { from: {r,c}, to: moveObject, pieceState: {race, job}, nextTurn }
-                    this.executeMove(payload.from.r, payload.from.c, payload.to, true, payload.pieceState);
-                    
-                    // [강제 동기화] MOVE 액션에도 턴 정보가 있다면 동기화 (단, 애니메이션 후 finalizeMove에서 처리되므로 타이밍 주의)
-                    // executeMove 내의 애니메이션이 비동기라 턴 변경이 늦어질 수 있음.
-                    // 하지만 데이터 정합성을 위해 payload.nextTurn이 있다면 저장해두었다가 finalizeMove 끝난 뒤 맞추는 게 좋음.
-                    // 여기선 간단하게 executeMove 호출로 충분하지만, 만약 턴이 꼬이면 아래 로직 활용 가능.
+                    // nextTurn 정보를 executeMove -> finalizeMove로 전달하여 강제 동기화
+                    this.executeMove(payload.from.r, payload.from.c, payload.to, true, payload.pieceState, payload.nextTurn);
                 } 
                 else if (type === 'SELECTION') {
                     // payload: { type, value, pos, nextTurn }
