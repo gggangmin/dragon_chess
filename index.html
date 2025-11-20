@@ -457,7 +457,7 @@
             messagingSenderId: "29950787222",
             appId: "1:29950787222:web:a6541e8b7e8d96266f4cb7",
             measurementId: "G-7T7ZW1F6B6",
-            databaseURL: "https://dragon-chess-67200-default-rtdb.firebaseio.com" // Database URL 추정 및 추가
+            databaseURL: "https://dragon-chess-67200-default-rtdb.firebaseio.com/" 
         };
 
         // Initialize Firebase
@@ -494,6 +494,10 @@
                 myPlayerColor = 'w';
                 isMultiplayer = true;
                 waitForOpponent(roomId);
+            }).catch((error) => {
+                console.error("Firebase Error:", error);
+                const msg = error.code === 'PERMISSION_DENIED' ? "권한 거부됨 (Rules 확인)" : error.message;
+                document.getElementById('lobby-status').innerHTML = `<span class="text-red-500 font-bold">ERROR: ${msg}</span><br><span class="text-xs text-gray-400">URL이 틀렸거나 DB가 생성되지 않았습니다.</span>`;
             });
         }
 
