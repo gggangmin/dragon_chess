@@ -7,9 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
-    <!-- Firebase SDK (Compat) -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     
     <style>
         @font-face {
@@ -199,36 +196,7 @@
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
 
-    <!-- Lobby Screen -->
-    <div id="lobby-screen" class="fixed inset-0 z-50 bg-gray-900 flex flex-col items-center justify-center text-center">
-        <div class="pixel-box p-10 border-4 border-yellow-400 bg-gray-800 shadow-[0_0_50px_rgba(255,215,0,0.2)]">
-            <h1 class="text-6xl font-bold text-yellow-400 mb-2" style="font-family: 'VT323'; text-shadow: 4px 4px 0 #000;">DRAGON CHESS</h1>
-            <p class="text-xl text-gray-400 mb-8 tracking-widest">ONLINE MULTIPLAYER</p>
-            
-            <div class="space-y-4 w-full max-w-md flex flex-col items-center">
-                <button onclick="createRoom()" class="pixel-btn w-64 bg-blue-600 text-white py-4 text-2xl hover:bg-blue-500">
-                    <i class="fas fa-plus-circle mr-2"></i> CREATE ROOM
-                </button>
-                
-                <div class="flex gap-2 w-64">
-                    <input type="text" id="room-code-input" placeholder="ENTER CODE" class="pixel-box flex-1 p-2 bg-black text-white text-center uppercase tracking-widest border-2 border-gray-600 focus:border-white outline-none">
-                    <button onclick="joinRoom()" class="pixel-btn bg-green-600 text-white px-4 hover:bg-green-500">
-                        JOIN
-                    </button>
-                </div>
-
-                <div id="lobby-status" class="h-6 text-sm text-yellow-200 mt-4 font-bold animate-pulse"></div>
-            </div>
-
-            <!-- Firebase Config Warning -->
-            <div class="mt-8 p-2 bg-red-900/50 border border-red-500 text-red-200 text-xs text-left max-w-md">
-                <strong>⚠️ SETUP REQUIRED:</strong><br>
-                GitHub Pages 배포 전, 코드 내 'firebaseConfig' 값을 본인의 Firebase 프로젝트 설정으로 교체해야 합니다.
-            </div>
-        </div>
-    </div>
-
-    <div id="game-screen" class="hidden flex flex-col lg:flex-row gap-8 w-full max-w-7xl items-start justify-center relative z-10">
+    <div class="flex flex-col lg:flex-row gap-8 w-full max-w-7xl items-start justify-center relative z-10">
         
         <!-- Game Area -->
         <div class="flex flex-col items-center w-full max-w-[600px] shrink-0">
@@ -433,6 +401,9 @@
                     </ul>
                 </div>
             </div>
+        </div>
+    </div>
+
     <!-- Modals -->
     <div id="selection-modal" class="hidden fixed inset-0 bg-black/90 flex flex-col items-center justify-center z-50 backdrop-blur-sm px-4">
         <div class="pixel-box p-8 max-w-3xl w-full text-center border-4 border-yellow-400 shadow-[0_0_30px_rgba(241,196,15,0.3)]">
@@ -451,100 +422,6 @@
     </div>
 
     <script>
-        // ==========================================
-        // FIREBASE SETUP (사용자 설정 완료)
-        // ==========================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyDrL1dEIFvvSzqjeVnCR-jnNXli-n-TLZ4",
-            authDomain: "dragon-chess-67200.firebaseapp.com",
-            projectId: "dragon-chess-67200",
-            storageBucket: "dragon-chess-67200.firebasestorage.app",
-            messagingSenderId: "29950787222",
-            appId: "1:29950787222:web:a6541e8b7e8d96266f4cb7",
-            measurementId: "G-7T7ZW1F6B6",
-            databaseURL: "https://dragon-chess-67200-default-rtdb.firebaseio.com" // Database URL 추정 및 추가
-        };
-
-        // Initialize Firebase
-        let database;
-        try {
-            firebase.initializeApp(firebaseConfig);
-            database = firebase.database();
-        } catch (e) {
-            console.error("Firebase Init Error:", e);
-            document.getElementById('lobby-status').innerText = "FIREBASE SETUP REQUIRED (SEE CODE)";
-            document.getElementById('lobby-status').classList.add('text-red-500');
-        }
-
-        // ==========================================
-        // LOBBY LOGIC
-        // ==========================================
-        let currentRoomId = null;
-        let myPlayerColor = null; // 'w' or 'b'
-        let isMultiplayer = false;
-
-        function createRoom() {
-            if (!database) return alert("Firebase 설정이 필요합니다.");
-            const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-            const roomRef = database.ref('rooms/' + roomId);
-            
-            document.getElementById('lobby-status').innerText = `CREATING ROOM: ${roomId}...`;
-            
-            roomRef.set({
-                created: firebase.database.ServerValue.TIMESTAMP,
-                status: 'waiting',
-                host: 'connected'
-            }).then(() => {
-                currentRoomId = roomId;
-                myPlayerColor = 'w';
-                isMultiplayer = true;
-                waitForOpponent(roomId);
-            });
-        }
-
-        function joinRoom() {
-            if (!database) return alert("Firebase 설정이 필요합니다.");
-            const roomId = document.getElementById('room-code-input').value.trim().toUpperCase();
-            if (!roomId) return alert("방 코드를 입력하세요.");
-
-            const roomRef = database.ref('rooms/' + roomId);
-            roomRef.get().then((snapshot) => {
-                if (snapshot.exists() && snapshot.val().status === 'waiting') {
-                    roomRef.update({
-                        status: 'playing',
-                        guest: 'connected'
-                    }).then(() => {
-                        currentRoomId = roomId;
-                        myPlayerColor = 'b';
-                        isMultiplayer = true;
-                        startGame(roomId);
-                    });
-                } else {
-                    alert("방을 찾을 수 없거나 이미 게임이 시작되었습니다.");
-                }
-            });
-        }
-
-        function waitForOpponent(roomId) {
-            document.getElementById('lobby-status').innerHTML = `ROOM CODE: <span class="text-4xl text-white bg-blue-600 px-2">${roomId}</span><br>WAITING FOR OPPONENT...`;
-            
-            const roomRef = database.ref('rooms/' + roomId);
-            roomRef.on('child_changed', (snapshot) => {
-                if (snapshot.key === 'status' && snapshot.val() === 'playing') {
-                    startGame(roomId);
-                }
-            });
-        }
-
-        function startGame(roomId) {
-            document.getElementById('lobby-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
-            document.getElementById('game-screen').classList.add('flex');
-            
-            game.initMultiplayer(roomId, myPlayerColor);
-        }
-
-
         // --- Constants & Config ---
         const COLORS = { WHITE: 'w', BLACK: 'b' };
         const PIECES = { PAWN: 'p', ROOK: 'r', KNIGHT: 'n', BISHOP: 'b', QUEEN: 'q', KING: 'k' };
@@ -760,10 +637,6 @@
 
             handleSquareClick(r, c) {
                 if (!this.gameActive || this.gamePaused) return;
-                
-                // [Multiplayer] 내 턴이 아니면 조작 불가
-                if (isMultiplayer && this.turn !== myPlayerColor) return;
-
                 const move = this.validMoves.find(m => m.r === r && m.c === c);
                 if (this.selectedSquare && move) {
                     this.executeMove(this.selectedSquare.r, this.selectedSquare.c, move);
@@ -875,7 +748,7 @@
                 }
             }
 
-            applyExpansion(type, index, isRemote = false) {
+            applyExpansion(type, index) {
                 if (type === PIECES.ROOK) {
                     const newRow = Array(this.cols).fill(null);
                     this.board.splice(index, 0, newRow);
@@ -884,11 +757,6 @@
                     for(let r=0; r<this.rows; r++) this.board[r].splice(index, 0, null);
                     this.cols++;
                 }
-                
-                if (isMultiplayer && !isRemote) {
-                    this.sendAction('EXPANSION', { type, index });
-                }
-
                 this.closeModal();
                 this.selectedSquare = null; 
                 this.validMoves = [];
@@ -902,7 +770,7 @@
                 this.gamePaused = false;
             }
 
-            executeMove(fromR, fromC, move, isRemote = false) {
+            executeMove(fromR, fromC, move) {
                 const piece = this.board[fromR][fromC];
                 const target = this.board[move.r][move.c];
                 let captureOccurred = false;
@@ -910,7 +778,6 @@
                 if (move.type === 'TELEPORT') {
                     this.board[move.r][move.c] = piece; this.board[fromR][fromC] = null;
                     piece.teleportUsed = true; this.teleportMode = false;
-                    if(isMultiplayer && !isRemote) this.sendAction('MOVE', { from: {r:fromR, c:fromC}, to: move });
                     this.endTurn(); return;
                 }
                 if (move.type === 'REVIVE') {
@@ -918,12 +785,10 @@
                     const idx = this.graveyard.lastIndexOf(deadPawn);
                     if(idx > -1) this.graveyard.splice(idx, 1);
                     this.board[move.r][move.c] = deadPawn; piece.priestUsed = true;
-                    if(isMultiplayer && !isRemote) this.sendAction('MOVE', { from: {r:fromR, c:fromC}, to: move });
                     this.endTurn(); return;
                 }
                 if (move.type === 'NEUTRALIZE') {
                     if (target) { target.race = RACES.NEUTRAL; target.job = null; }
-                    if(isMultiplayer && !isRemote) this.sendAction('MOVE', { from: {r:fromR, c:fromC}, to: move });
                     this.endTurn(); return;
                 }
 
@@ -962,27 +827,17 @@
                     }
                 }
 
-                // [Multiplayer] Send Move Action
-                if (isMultiplayer && !isRemote) {
-                    this.sendAction('MOVE', { from: {r: fromR, c: fromC}, to: move });
-                }
-
                 // Growth System Triggers
                 if (piece.type !== PIECES.KING && !piece.isSpirit && piece.moveCount === 1) {
                     this.pendingPiecePos = { r: move.r, c: move.c };
-                    // 원격일 경우 선택창 띄우지 않음 (상대방이 선택 후 SELECTION 액션을 보낼 것임)
-                    if (!isRemote) {
-                        this.pendingAction = 'RACE_SELECT';
-                        this.showSelectionModal('RACE');
-                    }
+                    this.pendingAction = 'RACE_SELECT';
+                    this.showSelectionModal('RACE');
                     return;
                 }
                 if (piece.type === PIECES.PAWN && !piece.isSpirit && piece.moveCount === 2 && !piece.job) {
                     this.pendingPiecePos = { r: move.r, c: move.c };
-                    if (!isRemote) {
-                        this.pendingAction = 'JOB_SELECT';
-                        this.showSelectionModal('JOB');
-                    }
+                    this.pendingAction = 'JOB_SELECT';
+                    this.showSelectionModal('JOB');
                     return;
                 }
 
@@ -1240,74 +1095,15 @@
                 `;
                 this.cardContainer.appendChild(card);
             }
-            handleSelection(type, value, isRemote = false) {
+            handleSelection(type, value) {
                 const piece = this.board[this.pendingPiecePos.r][this.pendingPiecePos.c];
                 if (type === 'RACE') piece.race = value;
                 else if (type === 'JOB') piece.job = value;
-
-                if (isMultiplayer && !isRemote) {
-                    this.sendAction('SELECTION', { type, value, pos: this.pendingPiecePos });
-                }
-
                 this.selectionModal.classList.add('hidden');
                 this.selectionModal.classList.remove('flex');
                 this.gamePaused = false;
                 this.renderBoard();
                 this.endTurn();
-            }
-            
-            // --- Multiplayer Methods ---
-            initMultiplayer(roomId, color) {
-                this.roomId = roomId;
-                this.resetGame(); // Reset first
-                
-                // Restore multi state
-                myPlayerColor = color;
-                currentRoomId = roomId;
-                isMultiplayer = true;
-                
-                this.updateStatus();
-                this.listenForActions();
-            }
-
-            sendAction(type, payload) {
-                if (!this.roomId) return;
-                firebase.database().ref(`rooms/${this.roomId}/actions`).push({
-                    type,
-                    payload,
-                    sender: myPlayerColor,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
-                });
-            }
-
-            listenForActions() {
-                const actionsRef = firebase.database().ref(`rooms/${this.roomId}/actions`);
-                actionsRef.on('child_added', (snapshot) => {
-                    const action = snapshot.val();
-                    if (action.sender !== myPlayerColor) {
-                        this.applyRemoteAction(action);
-                    }
-                });
-            }
-
-            applyRemoteAction(action) {
-                console.log("Remote Action:", action);
-                const { type, payload } = action;
-
-                if (type === 'MOVE') {
-                    // payload: { from: {r,c}, to: moveObject }
-                    this.executeMove(payload.from.r, payload.from.c, payload.to, true);
-                } 
-                else if (type === 'SELECTION') {
-                    // payload: { type: 'RACE'|'JOB', value: '...', pos: {r,c} }
-                    // 원격 선택의 경우 pendingPiecePos를 강제로 맞춰줘야 함
-                    this.pendingPiecePos = payload.pos; 
-                    this.handleSelection(payload.type, payload.value, true);
-                } 
-                else if (type === 'EXPANSION') {
-                    // payload: { type: PIECES.ROOK, index: 3 }
-                    this.applyExpansion(payload.type, payload.index, true);
-                }
             }
         }
 
