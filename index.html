@@ -182,20 +182,35 @@
             transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* 하스스톤 느낌의 텐션 */
         }
 
-        /* 2. 오크: 산산조각 (Shatter) */
-        .shatter-piece { animation: shatter-shake 0.1s infinite; }
-        .shard {
-            position: absolute; width: 14px; height: 14px; /* 파편 크기 증가 */
-            background-color: #fff; 
-            box-shadow: 0 0 6px rgba(255,255,255,0.9); /* 빛 효과 강화 */
-            z-index: 100; pointer-events: none;
-            animation: shard-fly 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) forwards; /* 지속시간 증가 */
+        /* 2. 오크: 산산조각 (Shatter) - 리얼한 파괴 효과 */
+        .shatter-piece { animation: shatter-shake 0.05s infinite; } /* 진동 속도 업 */
+        
+        /* 기물 조각 (4등분) */
+        .piece-fragment {
+            position: absolute; z-index: 100; pointer-events: none;
+            transition: all 0.6s cubic-bezier(0.1, 0.9, 0.2, 1); /* 쾅! 하고 퍼지는 느낌 */
         }
-        @keyframes shatter-shake { 0% { transform: translate(3px, 3px); } 100% { transform: translate(-3px, -3px); } } /* 진동 폭 증가 */
+        
+        /* 작은 파편들 (보조) */
+        .shard {
+            position: absolute; width: 8px; height: 8px;
+            background-color: #fff; 
+            box-shadow: 0 0 4px rgba(255,255,255,0.8);
+            z-index: 99; pointer-events: none;
+            border-radius: 2px; /* 약간 둥글게 */
+            animation: shard-fly 0.6s ease-out forwards;
+        }
+        
+        @keyframes shatter-shake { 
+            0% { transform: translate(2px, 1px) rotate(1deg); } 
+            25% { transform: translate(-1px, -2px) rotate(-1deg); }
+            50% { transform: translate(-3px, 0px) rotate(1deg); }
+            75% { transform: translate(0px, 2px) rotate(-1deg); }
+            100% { transform: translate(1px, -1px) rotate(0deg); }
+        }
         @keyframes shard-fly {
-            0% { opacity: 1; transform: translate(var(--tx), var(--ty)) scale(0.8); }
-            60% { opacity: 1; } /* 중간까지 투명도 유지 */
-            100% { opacity: 0; transform: translate(calc(var(--tx) * 4), calc(var(--ty) * 4)) rotate(var(--r)) scale(0); }
+            0% { opacity: 1; transform: translate(var(--tx), var(--ty)) scale(1); }
+            100% { opacity: 0; transform: translate(calc(var(--tx) * 2.5), calc(var(--ty) * 2.5)) rotate(var(--r)) scale(0); }
         }
 
         /* 3. 맵 확장: 화면 흔들림 & 타일 솟아오름 */
@@ -858,7 +873,8 @@
             createPiece(type, color) {
                 return {
                     type, color, race: null, job: null, moveCount: 0,
-                    isSpirit: false, priestUsed: false, isDragon: false, teleportUsed: false
+                    isSpirit: false, priestUsed: false, isDragon: false, teleportUsed: false,
+                    expansionUsed: false // 영역 확장 사용 여부
                 };
             }
 
@@ -969,7 +985,7 @@
 
             checkSkillAvailability(piece) {
                 let showBtn = false;
-                if ((piece.type === PIECES.ROOK || piece.type === PIECES.BISHOP) && piece.moveCount >= 2) showBtn = true;
+                if ((piece.type === PIECES.ROOK || piece.type === PIECES.BISHOP) && piece.moveCount >= 2 && !piece.expansionUsed) showBtn = true;
                 if (piece.type === PIECES.QUEEN && !piece.teleportUsed) showBtn = true;
                 
                 if (showBtn) {
@@ -1051,12 +1067,26 @@
                     const btn = document.createElement('button');
                     btn.className = "pixel-btn bg-gray-700 text-white p-3 min-w-[50px]";
                     btn.innerText = `${i}`;
+                    // [수정] applyExpansion에 현재 선택된 기물 위치 정보 전달 필요 (사용 플래그 처리를 위해)
+                    // 하지만 applyExpansion은 인덱스만 받음.
+                    // 여기서 스킬 사용 주체가 되는 기물을 찾아야 함.
+                    // 다행히 this.selectedSquare가 아직 유효함.
                     btn.onclick = () => this.applyExpansion(type, i);
                     this.cardContainer.appendChild(btn);
                 }
             }
 
             applyExpansion(type, index, isRemote = false) {
+                // [Skill Flag] 스킬을 사용한 기물 처리
+                // 로컬에서 실행할 때만 selectedSquare를 통해 기물을 찾고 플래그를 세움
+                if (!isRemote && this.selectedSquare) {
+                    const piece = this.board[this.selectedSquare.r][this.selectedSquare.c];
+                    if (piece) piece.expansionUsed = true;
+                }
+                // 원격 실행 시에는 정확한 기물을 특정하기 어려울 수 있음 (이미 턴이 넘어갔거나 선택이 해제됨).
+                // 하지만 원격 로직은 "결과"만 동기화하면 되므로, 보드 확장 자체만 수행하면 됨.
+                // (상대방 화면에서 상대방 기물의 버튼 활성화 여부는 중요하지 않음 - 어차피 내 턴이 아니므로)
+
                 if (type === PIECES.ROOK) {
                     const newRow = Array(this.cols).fill(null);
                     this.board.splice(index, 0, newRow);
@@ -1396,37 +1426,77 @@
                 document.body.appendChild(clone);
 
                 if (attackerRace === RACES.ORC) {
-                    // Shatter Effect
-                    clone.classList.add('shatter-piece');
+                    // 1. 기물이 쾅! 하고 깨지는 효과 (4등분 + 파편)
                     
-                    // 파편 개수 및 확산 범위 증가
-                    for(let i=0; i<16; i++) { 
+                    // 원본 클론은 숨김 (대신 조각들을 보여줌)
+                    clone.style.visibility = 'hidden'; 
+
+                    // 4등분 조각 생성
+                    const clips = [
+                        'polygon(0 0, 50% 0, 50% 50%, 0 50%)',       // 좌상
+                        'polygon(50% 0, 100% 0, 100% 50%, 50% 50%)', // 우상
+                        'polygon(0 50%, 50% 50%, 50% 100%, 0 100%)', // 좌하
+                        'polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%)' // 우하
+                    ];
+                    const moves = [
+                        {x: -30, y: -30, r: -45}, // 좌상으로 튕김
+                        {x: 30, y: -30, r: 45},   // 우상으로 튕김
+                        {x: -30, y: 30, r: -45},  // 좌하로 튕김
+                        {x: 30, y: 30, r: 45}     // 우하로 튕김
+                    ];
+
+                    for(let i=0; i<4; i++) {
+                        const fragment = targetEl.cloneNode(true);
+                        fragment.classList.add('piece-fragment');
+                        
+                        // 위치 및 크기 설정 (절대 좌표)
+                        fragment.style.position = 'absolute';
+                        fragment.style.left = (rect.left + window.scrollX) + 'px';
+                        fragment.style.top = (rect.top + window.scrollY) + 'px';
+                        fragment.style.width = rect.width + 'px';
+                        fragment.style.height = rect.height + 'px';
+                        fragment.style.margin = '0';
+                        
+                        // 자르기
+                        fragment.style.clipPath = clips[i];
+                        
+                        document.body.appendChild(fragment);
+
+                        // 애니메이션 실행 (Reflow 후 적용)
+                        requestAnimationFrame(() => {
+                            fragment.style.opacity = '0';
+                            fragment.style.transform = `translate(${moves[i].x + (Math.random()*20-10)}px, ${moves[i].y + (Math.random()*20-10)}px) rotate(${moves[i].r + (Math.random()*30)}deg) scale(0.8)`;
+                        });
+
+                        // 정리
+                        setTimeout(() => fragment.remove(), 600);
+                    }
+
+                    // 작은 파편들 (먼지 효과)
+                    for(let i=0; i<8; i++) {
                         const shard = document.createElement('div');
                         shard.className = 'shard';
-                        // 중앙에서 랜덤한 위치 시작
-                        const offsetX = (Math.random() - 0.5) * rect.width * 0.5;
-                        const offsetY = (Math.random() - 0.5) * rect.height * 0.5;
                         
-                        shard.style.left = (rect.left + window.scrollX + rect.width/2 + offsetX - 7) + 'px'; 
-                        shard.style.top = (rect.top + window.scrollY + rect.height/2 + offsetY - 7) + 'px';
+                        const ox = (Math.random() - 0.5) * rect.width;
+                        const oy = (Math.random() - 0.5) * rect.height;
                         
-                        // 더 넓게 퍼지도록 범위 증가
-                        const dist = 100 + Math.random() * 150;
-                        const angle = Math.random() * Math.PI * 2;
+                        shard.style.left = (rect.left + window.scrollX + rect.width/2 + ox) + 'px';
+                        shard.style.top = (rect.top + window.scrollY + rect.height/2 + oy) + 'px';
                         
-                        const tx = (Math.cos(angle) * dist) + 'px';
-                        const ty = (Math.sin(angle) * dist) + 'px';
-                        const rot = (Math.random() * 720 - 360) + 'deg'; 
+                        const tx = (Math.random() - 0.5) * 150 + 'px';
+                        const ty = (Math.random() - 0.5) * 150 + 'px';
+                        const rot = Math.random() * 360 + 'deg';
                         
                         shard.style.setProperty('--tx', tx);
                         shard.style.setProperty('--ty', ty);
                         shard.style.setProperty('--r', rot);
                         
                         document.body.appendChild(shard);
-                        setTimeout(() => shard.remove(), 800);
+                        setTimeout(() => shard.remove(), 600);
                     }
-                    // 본체가 떨리는 연출을 조금 더 길게 보여줌
-                    setTimeout(() => clone.remove(), 250);
+                    
+                    // 원본 클론 제거
+                    clone.remove();
                 } 
                 else if (attackerRace === RACES.ELF) {
                     clone.classList.add('fade-kill');
