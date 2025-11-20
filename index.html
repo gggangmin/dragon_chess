@@ -515,6 +515,7 @@
             document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('game-screen').classList.remove('hidden');
             document.getElementById('game-screen').classList.add('flex');
+            document.getElementById('reset-btn').classList.remove('hidden'); // 로컬에선 보임
             game.resetGame();
         }
 
@@ -522,6 +523,7 @@
             document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('lobby-screen').classList.remove('hidden');
             document.getElementById('lobby-screen').classList.add('flex');
+            document.getElementById('reset-btn').classList.add('hidden'); // 온라인에선 숨김
         }
 
         function backToMenu() {
@@ -1350,6 +1352,8 @@
                 if (isMultiplayer && !isRemote) {
                     // 지연된 이동 액션이 있다면 지금 전송
                     if (this.deferredMove) {
+                        // 중요: 상대방에게 MOVE를 먼저 보내고 -> 그 다음 SELECTION을 보냄
+                        // 상대방은 MOVE를 받으면 이동을 수행하고, SELECTION을 받으면 속성을 적용함
                         this.sendAction('MOVE', this.deferredMove);
                         this.deferredMove = null;
                     }
@@ -1360,7 +1364,15 @@
                 this.selectionModal.classList.remove('flex');
                 this.gamePaused = false;
                 this.renderBoard();
-                this.endTurn();
+                
+                // 버그 수정: 선택이 끝나면 턴을 확실하게 종료해야 함
+                // executeMove에서 성장 트리거 시 return 했으므로, 여기서 대신 처리
+                if (!this.extraTurnAvailable) {
+                    this.endTurn();
+                } else {
+                    // 광전사 등으로 추가 턴이 있는 경우 상태 업데이트
+                    this.updateStatus();
+                }
             }
             
             // --- Multiplayer Methods ---
